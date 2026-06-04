@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: chalab-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${PGSQLPASSWORD}
+      POSTGRES_DB: chatdemopg
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chatdemopg"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: chalab-api
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000
+    environment:
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
+      PGSQLPASSWORD: ${PGSQLPASSWORD}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  streamlit:
+    build: .
+    container_name: chalab-streamlit
+    command: streamlit run front/frontend.py --server.port 8501 --server.enableCORS false --server.enableXsrfProtection false --server.baseUrlPath /chatlab
+    environment:
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
+      PGSQLPASSWORD: ${PGSQLPASSWORD}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      API_BASE_URL: http://api:8000/api/v1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

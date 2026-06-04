@@ -1,0 +1,352 @@
+/* ==========================================
+   Homepage — Minimalist Product Showcase
+   ========================================== */
+
+/* ── Reset & Base ───────────────────────── */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+:root {
+    --color-bg:        #ffffff;
+    --color-surface:   #f8f8f8;
+    --color-border:    #e5e5e5;
+    --color-text:      #1a1a1a;
+    --color-muted:     #6b7280;
+    --color-accent:    #1e3a5f;
+    --color-accent-dim:#2d5a87;
+    --font-sans:       "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+                       system-ui, -apple-system, "Segoe UI", sans-serif;
+    --font-mono:       "SF Mono", "Fira Code", "Consolas", monospace;
+    --max-width:       1080px;
+    --radius:          12px;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--font-sans);
+    color: var(--color-text);
+    background: var(--color-bg);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* ── Utility ────────────────────────────── */
+.container {
+    width: 100%;
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+/* ── Navbar ─────────────────────────────── */
+.navbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--color-border);
+}
+
+.navbar .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 56px;
+}
+
+.nav-logo {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+}
+
+.nav-links {
+    display: flex;
+    gap: 1.5rem;
+    list-style: none;
+}
+
+.nav-links a {
+    font-size: 0.85rem;
+    color: var(--color-muted);
+    transition: color 0.15s;
+}
+
+.nav-links a:hover {
+    color: var(--color-text);
+}
+
+/* ── Hero ────────────────────────────────── */
+.hero {
+    padding: 5rem 0 3rem;
+    text-align: center;
+}
+
+.hero-tag {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    background: rgba(30, 58, 95, 0.06);
+    padding: 0.3rem 0.8rem;
+    border-radius: 99px;
+    margin-bottom: 1.25rem;
+}
+
+.hero h1 {
+    font-size: 2.8rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-bottom: 0.75rem;
+}
+
+.hero .subtitle {
+    font-size: 1.1rem;
+    color: var(--color-muted);
+    max-width: 480px;
+    margin: 0 auto 2rem;
+}
+
+.hero-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+/* ── Buttons ─────────────────────────────── */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.65rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn-primary {
+    background: var(--color-text);
+    color: #ffffff;
+}
+
+.btn-primary:hover {
+    background: #333333;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+}
+
+.btn-outline {
+    background: transparent;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+}
+
+.btn-outline:hover {
+    background: var(--color-surface);
+    border-color: #ccc;
+}
+
+/* ── Section ─────────────────────────────── */
+.section {
+    padding: 4rem 0;
+}
+
+.section-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+}
+
+.section-header h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.4rem;
+}
+
+.section-header p {
+    font-size: 0.9rem;
+    color: var(--color-muted);
+}
+
+/* ── Project Cards ───────────────────────── */
+.project-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.25rem;
+}
+
+.project-card {
+    display: flex;
+    flex-direction: column;
+    padding: 1.6rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-bg);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.project-card:hover {
+    border-color: #bbb;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+}
+
+.project-card .card-icon {
+    font-size: 2rem;
+    margin-bottom: 0.75rem;
+    line-height: 1;
+}
+
+.project-card h3 {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+    letter-spacing: -0.01em;
+}
+
+.project-card .card-desc {
+    font-size: 0.85rem;
+    color: var(--color-muted);
+    line-height: 1.55;
+    flex: 1;
+    margin-bottom: 0.75rem;
+}
+
+.project-card .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+}
+
+.card-tags span {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--color-muted);
+    background: var(--color-surface);
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+}
+
+.project-card .btn {
+    align-self: flex-start;
+    font-size: 0.82rem;
+    padding: 0.5rem 1.2rem;
+}
+
+/* ── Placeholder Card ────────────────────── */
+.project-card.placeholder {
+    border-style: dashed;
+    border-color: #ddd;
+    background: transparent;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    min-height: 240px;
+}
+
+.project-card.placeholder:hover {
+    border-color: #ccc;
+    box-shadow: none;
+}
+
+.project-card.placeholder .plus {
+    font-size: 2rem;
+    color: #ccc;
+    font-weight: 300;
+    margin-bottom: 0.5rem;
+}
+
+.project-card.placeholder .hint {
+    font-size: 0.8rem;
+    color: #bbb;
+}
+
+/* ── Footer ──────────────────────────────── */
+.footer {
+    border-top: 1px solid var(--color-border);
+    padding: 1.5rem 0;
+    margin-top: 2rem;
+}
+
+.footer .container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.footer-copy {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+}
+
+.footer-links {
+    display: flex;
+    gap: 1.25rem;
+    list-style: none;
+}
+
+.footer-links a {
+    font-size: 0.78rem;
+    color: var(--color-muted);
+    transition: color 0.15s;
+}
+
+.footer-links a:hover {
+    color: var(--color-text);
+}
+
+/* ── Responsive ──────────────────────────── */
+@media (max-width: 768px) {
+    .hero {
+        padding: 3rem 0 2rem;
+    }
+
+    .hero h1 {
+        font-size: 2rem;
+    }
+
+    .hero .subtitle {
+        font-size: 0.95rem;
+    }
+
+    .project-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .section {
+        padding: 2.5rem 0;
+    }
+
+    .footer .container {
+        flex-direction: column;
+        text-align: center;
+    }
+}

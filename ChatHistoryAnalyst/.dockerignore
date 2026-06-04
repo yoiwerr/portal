@@ -1,0 +1,12 @@
+.env
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+.Streamlit
+.claude
+proposal.md
+TODO.md
+*.md
+!README.md
