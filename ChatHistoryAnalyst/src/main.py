@@ -1,9 +1,12 @@
 import base64
 import json
+import os
 import re
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from langchain_core.messages import HumanMessage
 
 from src.schemas import ImportRequest, AnalysisRequest, ChatMessage, EmotionResponse, AtmosphereResponse, FileUploadResponse
@@ -254,3 +257,24 @@ async def clear_vector_store_endpoint():
     """
     result = clear_vector_stores()
     return {"status": "success", "message": result}
+
+
+# ── Homepage (local dev) ─────────────────────────────
+
+_STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "static")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def homepage():
+    """首页"""
+    with open(os.path.join(_STATIC_DIR, "index.html"), encoding="utf-8") as f:
+        return f.read()
+
+
+@app.get("/chatlab")
+async def chatlab_redirect():
+    """本地开发时将 /chatlab 重定向到 Streamlit。服务器上 nginx 会直接拦截。"""
+    return RedirectResponse(url="http://localhost:8501")
+
+
+app.mount("/css", StaticFiles(directory=os.path.join(_STATIC_DIR, "css")), name="css")
