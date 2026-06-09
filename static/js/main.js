@@ -115,10 +115,10 @@ function initBgmPlayer() {
 
   // ── BGM Playlist ────────────────────────────────────────
   const playlist = [
-    { file: '/bgm/Frank Ocean - Self Control.mp3',    name: 'Self Control' },
-    { file: '/bgm/Frank Ocean - Pink + White.mp3',    name: 'Pink + White' },
-    { file: '/bgm/Frank Ocean - Solo.mp3',            name: 'Solo' },
-    { file: '/bgm/Frank Ocean - White Ferrari.mp3',   name: 'White Ferrari' },
+    { file: '/bgm/Frank_Ocean_-_Self_Control.mp3',    name: 'Self Control' },
+    { file: '/bgm/Frank_Ocean_-_Pink_+_White.mp3',    name: 'Pink + White' },
+    { file: '/bgm/Frank_Ocean_-_Solo.mp3',            name: 'Solo' },
+    { file: '/bgm/Frank_Ocean_-_White_Ferrari.mp3',   name: 'White Ferrari' },
   ];
 
   let loaded = false;
