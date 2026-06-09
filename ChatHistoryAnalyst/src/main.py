@@ -5,7 +5,8 @@ import re
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from langchain_core.messages import HumanMessage
 
@@ -17,6 +18,14 @@ from src.rag_function import save_chats_to_long_term_memory, import_knowledge_fi
 from src.core_llm import vision_llm
 
 app = FastAPI(title="Chat Analysis Agent API", version="1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # 支持的图片 MIME 类型
 IMAGE_MIME_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
@@ -271,10 +280,14 @@ async def homepage():
         return f.read()
 
 
-@app.get("/chatlab")
-async def chatlab_redirect():
-    """本地开发时将 /chatlab 重定向到 Streamlit。服务器上 nginx 会直接拦截。"""
-    return RedirectResponse(url="http://localhost:8501")
+@app.get("/chatlab", response_class=HTMLResponse)
+async def chatlab_page():
+    """ChatLab 前端页面"""
+    with open(os.path.join(_STATIC_DIR, "chatlab.html"), encoding="utf-8") as f:
+        return f.read()
 
 
 app.mount("/css", StaticFiles(directory=os.path.join(_STATIC_DIR, "css")), name="css")
+app.mount("/js", StaticFiles(directory=os.path.join(_STATIC_DIR, "js")), name="js")
+app.mount("/bgm", StaticFiles(directory=os.path.join(_STATIC_DIR, "bgm")), name="bgm")
+app.mount("/photo", StaticFiles(directory=os.path.join(_STATIC_DIR, "photo")), name="photo")

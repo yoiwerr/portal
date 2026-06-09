@@ -1,92 +1,131 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Projects — AI 工具集</title>
-    <link rel="stylesheet" href="/css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="yoiwerr — AI Infra · Systems · Database Kernel Engineer">
+  <meta name="color-scheme" content="dark">
+  <title>yoiwerr</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500&family=Noto+Serif+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- Navbar -->
-<!-- ══════════════════════════════════════════ -->
-<nav class="navbar">
-    <div class="container">
-        <a href="/" class="nav-logo">Projects</a>
-        <ul class="nav-links">
-            <li><a href="#projects">项目</a></li>
-            <li><a href="/chatlab">ChatLab</a></li>
-        </ul>
-    </div>
-</nav>
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- Background Layer                                  -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="bg-layer" aria-hidden="true">
+    <img
+      class="bg-image"
+      src="/photo/guts.png"
+      alt=""
+      loading="eager"
+    >
+    <div class="bg-vignette"></div>
+    <div class="bg-scanline"></div>
+  </div>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- Hero -->
-<!-- ══════════════════════════════════════════ -->
-<header class="hero">
-    <div class="container">
-        <span class="hero-tag">AI · Tools</span>
-        <h1>用 AI 理解每一次对话</h1>
-        <p class="subtitle">
-            基于大语言模型与心理学的对话分析工具集，让 AI 帮你读懂关系中的信号
-        </p>
-        <div class="hero-actions">
-            <a href="/chatlab" class="btn btn-primary">开始使用</a>
-            <a href="#projects" class="btn btn-outline">查看项目</a>
-        </div>
-    </div>
-</header>
+  <!-- Three.js Ash Particles -->
+  <canvas id="bg-canvas" aria-hidden="true"></canvas>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- Projects -->
-<!-- ══════════════════════════════════════════ -->
-<section class="section" id="projects">
-    <div class="container">
-        <div class="section-header">
-            <h2>项目</h2>
-            <p>持续构建中的 AI 应用</p>
-        </div>
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- App Shell                                         -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="app-shell">
 
-        <div class="project-grid">
+    <!-- ── Top Bar ──────────────────────────────────── -->
+    <header class="top-bar">
+      <a class="brand" href="/" aria-label="yoiwerr — Home">
+        <span class="brand-text">yoiwerr</span>
+        <span class="brand-glint"></span>
+      </a>
+    </header>
 
-            <!-- ChatLab 卡片 -->
-            <a href="/chatlab" class="project-card">
-                <div class="card-icon">💬</div>
-                <h3>ChatLab</h3>
-                <p class="card-desc">
-                    AI 驱动的聊天记录分析引擎。模仿对方语气、量化情感状态、洞察关系中的权力动态与沟通氛围。
-                </p>
-                <div class="card-tags">
-                    <span>AI Agent</span>
-                    <span>RAG</span>
-                    <span>心理学</span>
-                </div>
-                <span class="btn btn-primary">进入 ChatLab →</span>
-            </a>
+    <!-- ── Right Sidebar ────────────────────────────── -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-trigger" id="sidebarTrigger" aria-label="项目菜单">
+        <span class="trigger-bars">☰</span>
+      </div>
+      <div class="sidebar-panel" id="sidebarPanel">
+        <div class="panel-inner">
+          <h3 class="panel-title">Projects</h3>
 
-            <!-- 预留占位卡 -->
-            <div class="project-card placeholder">
-                <div class="plus">+</div>
-                <div class="hint">更多项目即将上线</div>
+          <!-- ChatLab Crystal Card -->
+          <a href="/chatlab" class="glass-card" id="chatlabCard">
+            <span class="glass-card-icon">💬</span>
+            <span class="glass-card-badge">Featured</span>
+            <h4 class="glass-card-title">ChatLab</h4>
+            <p class="glass-card-desc">
+              AI 驱动的聊天记录分析引擎 —— 模仿语气、量化情感、洞察关系中的权力动态。
+              三个 LangChain Agent + PGVector 向量库。
+            </p>
+            <div class="glass-card-tags">
+              <span>AI Agent</span>
+              <span>RAG</span>
+              <span>FastAPI</span>
+              <span>LangChain</span>
             </div>
+            <span class="glass-card-cta">进入 ChatLab →</span>
+          </a>
 
+          <!-- More coming -->
+          <div class="glass-card placeholder-card">
+            <div class="placeholder-mark">+</div>
+            <p>更多项目即将上线</p>
+          </div>
         </div>
-    </div>
-</section>
+      </div>
+    </aside>
 
-<!-- ══════════════════════════════════════════ -->
-<!-- Footer -->
-<!-- ══════════════════════════════════════════ -->
-<footer class="footer">
-    <div class="container">
-        <span class="footer-copy">&copy; 2026 Projects</span>
-        <ul class="footer-links">
-            <li><a href="/chatlab">ChatLab</a></li>
-            <li><a href="/api/docs">API Docs</a></li>
-        </ul>
+    <!-- ── BGM Player ────────────────────────────────── -->
+    <div class="bgm-player" id="bgmPlayer">
+      <button class="bgm-toggle" id="bgmToggle" aria-label="播放/暂停 BGM">
+        <span class="bgm-icon-play">▶</span>
+        <span class="bgm-icon-pause">⏸</span>
+      </button>
+      <div class="bgm-volume-wrap">
+        <input
+          type="range"
+          class="bgm-volume"
+          id="bgmVolume"
+          min="0"
+          max="100"
+          value="30"
+          aria-label="音量"
+        >
+        <span class="bgm-label">BGM</span>
+      </div>
+      <span class="bgm-track" id="bgmTrack" title="当前曲目"></span>
     </div>
-</footer>
 
+  </div><!-- /app-shell -->
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- Audio Element (hidden)                            -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <audio id="bgmAudio" loop preload="none"></audio>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- Libraries                                         -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- App Scripts                                       -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <script type="module">
+    import * as THREE from 'three';
+    window.THREE = THREE;
+    await import('/js/particles.js');
+  </script>
+  <script src="/js/main.js"></script>
 </body>
 </html>

@@ -12,5 +12,4 @@ services:
       - ./static:/usr/share/nginx/html:ro
     depends_on:
       - api
-      - streamlit
     restart: unless-stopped
