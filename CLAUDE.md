@@ -70,10 +70,23 @@ chmod +x scripts/deploy.sh && ./scripts/deploy.sh
 4. git add -A && git commit && git push
 ```
 
-## 本次 Session (2026-06-04) 做了什么
+## Session 记录
+
+### 2026-06-04
 
 1. **清理 ChatHistoryAnalyst/** — 删除冗余文件（nginx/ static/ scripts/ TODO.md course/ portfolio/ proposal.md），已提升至 portal 层
 2. **统一 Git 仓库** — 删除嵌套 .git，portal/ 一个 repo 管理所有
 3. **首页集成** — FastAPI 挂载首页，打开 :8000 即见首页，/chatlab 重定向到 Streamlit
 4. **Makefile** — `make dev` 代替脚本，一个命令起所有服务
 5. **文档更新** — 重写 CLAUDE.md / CHANGES.md 对齐真实结构
+
+### 2026-06-09
+
+1. **BGM 修复** — 替换为真实 Frank Ocean 歌单（4首），自动切曲+循环，播放器显示曲目名
+2. **删除 tagline** — 移除首页 "AI Infra & Systems Engineer" 标语及相关 CSS/JS
+3. **ChatLab 双栏布局** — 左 2/3（导入+三大功能），右 1/3（预览面板），水晶卡片阴影，纯白主题
+4. **CORS + API 修复** — chatlab.js 改用相对路径 `/api/v1`，FastAPI 加 CORS 中间件
+5. **uv 管理** — portal 层 `pyproject.toml` + `.python-version`，`run_dev.py` 用 `uv run` 启动
+6. **CONTROLWEB.md** — 服务器运维手册（部署+域名+HTTPS+Cloudflare+更新流程）
+7. **favicon** — 内联 SVG 图标解决标签页转圈
+8. **nginx 路由** — 新增 `/bgm/` `/photo/` location 块，BGM 文件去空格
