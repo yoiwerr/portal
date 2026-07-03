@@ -1,5 +1,6 @@
 include:
   - ChatHistoryAnalyst/docker-compose.yml
+  - MakeItSmooth/docker-compose.yml
 
 services:
   nginx:
@@ -12,4 +13,5 @@ services:
       - ./static:/usr/share/nginx/html:ro
     depends_on:
       - api
+      - smooth-api
     restart: unless-stopped

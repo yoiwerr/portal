@@ -2,7 +2,7 @@
 import os
 from dotenv import load_dotenv
 from langchain_core.documents import Document
-from typing import List
+from typing import List, Optional
 from src.schemas import ChatMessage
 
 from langchain_community.embeddings import DashScopeEmbeddings
@@ -38,7 +38,7 @@ def _get_embedding_dim() -> int:
     return EMBEDDING_DIM
 
 
-def _get_stored_vector_dim() -> int | None:
+def _get_stored_vector_dim() -> Optional[int]:
     """查询 pgvector 表中已存储向量的维度，若无数据则返回 None。"""
     engine = None
     try:
@@ -73,41 +73,78 @@ def check_dimension_mismatch() -> bool:
     return stored_dim != current_dim
 
 
-# 模块加载时检测维度不匹配，发现不一致则报错阻止启动
-_dim_mismatch = check_dimension_mismatch()
-if _dim_mismatch:
-    stored = _get_stored_vector_dim()
-    current = _get_embedding_dim()
-    raise RuntimeError(
-        f"\n{'='*60}\n"
-        f"  向量维度不匹配，无法启动。\n"
-        f"  表中维度: {stored}\n"
-        f"  当前模型维度: {current}\n"
-        f"\n"
-        f"  请选择以下方式之一修复：\n"
-        f"  1. (推荐) 调用清理API: DELETE /api/v1/clear_vector_store\n"
-        f"     然后重新导入知识文件和聊天记录\n"
-        f"  2. 手动在 PostgreSQL 中执行:\n"
-        f"     DROP TABLE IF EXISTS langchain_pg_embedding CASCADE;\n"
-        f"     DROP TABLE IF EXISTS langchain_pg_collection CASCADE;\n"
-        f"{'='*60}"
-    )
+def check_dimension_mismatch_or_none() -> Optional[str]:
+    """启动时检测维度不匹配，返回错误消息字符串；无问题或 DB 不可达时返回 None。
 
-# 【永久库】：心理学资料、理论文献
-knowledge_store = PGVector(
-    embeddings=embeddings,
-    collection_name="psychology_knowledge",
-    connection=CONNECTION_STRING,
-    use_jsonb=True
-)
+    与旧版 check_dimension_mismatch() 不同：此函数不会 raise，DB 不可达时返回 None
+    让 API 正常启动，RAG 功能在 DB 恢复后可用。
+    """
+    try:
+        stored_dim = _get_stored_vector_dim()
+    except Exception:
+        return None  # DB 不可达，不是维度问题
+    if stored_dim is None:
+        return None
+    current_dim = _get_embedding_dim()
+    if stored_dim != current_dim:
+        return (
+            f"向量维度不匹配。表中维度: {stored_dim}, 当前模型维度: {current_dim}。"
+            f"请调用 DELETE /api/v1/clear_vector_store 后重新导入数据。"
+        )
+    return None
 
-# 【历史库】：聊天记录（持久积累，不再清空）
-chat_history_store = PGVector(
-    embeddings=embeddings,
-    collection_name="chat_history",
-    connection=CONNECTION_STRING,
-    use_jsonb=True
-)
+
+# ══════════════════════════════════════════════════════════════
+# Lazy-init PGVector stores — 避免模块导入时因 DB 不可达导致整个 API 无法启动
+# ══════════════════════════════════════════════════════════════
+
+_knowledge_store: Optional[PGVector] = None
+_chat_history_store: Optional[PGVector] = None
+_dim_warning: Optional[str] = None
+
+
+def get_knowledge_store() -> PGVector:
+    """惰性初始化心理学知识库向量存储。首次调用时连接 DB。"""
+    global _knowledge_store
+    if _knowledge_store is None:
+        _knowledge_store = PGVector(
+            embeddings=embeddings,
+            collection_name="psychology_knowledge",
+            connection=CONNECTION_STRING,
+            use_jsonb=True
+        )
+    return _knowledge_store
+
+
+def get_chat_history_store() -> PGVector:
+    """惰性初始化聊天历史向量存储。首次调用时连接 DB。"""
+    global _chat_history_store
+    if _chat_history_store is None:
+        _chat_history_store = PGVector(
+            embeddings=embeddings,
+            collection_name="chat_history",
+            connection=CONNECTION_STRING,
+            use_jsonb=True
+        )
+    return _chat_history_store
+
+
+def get_dimension_warning() -> Optional[str]:
+    """返回维度不匹配的警告消息，无问题时返回 None。"""
+    global _dim_warning
+    if _dim_warning is None:
+        _dim_warning = check_dimension_mismatch_or_none()
+    return _dim_warning
+
+
+# ── 向后兼容的模块级别名 ──
+# via __getattr__: 外部 import knowledge_store / chat_history_store 时惰性解析
+def __getattr__(name: str):
+    if name == "knowledge_store":
+        return get_knowledge_store()
+    if name == "chat_history_store":
+        return get_chat_history_store()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 CONTEXT_WINDOW = 3  # 每条消息前后各附带 N 条作为上下文
@@ -133,10 +170,12 @@ def save_chats_to_long_term_memory(recent_chats: List[ChatMessage], target_perso
     if not recent_chats:
         return "没有接收到聊天记录。"
 
+    store = get_chat_history_store()
+
     # 写入前去重：检查内容完全相同的消息是否已存在
     existing_contents: set[str] = set()
     try:
-        existing_results = chat_history_store.similarity_search(
+        existing_results = store.similarity_search(
             target_person, k=min(100, len(recent_chats) * 2),
             filter={"target_person": target_person, "type": "chat_history"}
         )
@@ -169,7 +208,7 @@ def save_chats_to_long_term_memory(recent_chats: List[ChatMessage], target_perso
         return f"所有 {skipped} 条记录已存在，跳过写入。"
 
     try:
-        chat_history_store.add_documents(docs)
+        store.add_documents(docs)
         msg = f"成功将 {len(docs)} 条关于 {target_person} 的聊天记录存入长期记忆库"
         if skipped:
             msg += f"（已跳过 {skipped} 条重复）"
@@ -191,8 +230,9 @@ def import_knowledge_file(file_name: str) -> str:
     if not os.path.exists(file_path):
         return f"文件不存在: {file_path}"
 
+    store = get_knowledge_store()
     try:
-        existing = knowledge_store.similarity_search(" ", k=1, filter={"source": file_name})
+        existing = store.similarity_search(" ", k=1, filter={"source": file_name})
         if existing:
             return f"文件 {file_name} 已导入过（检测到同名 source），跳过。"
     except Exception:
@@ -217,7 +257,7 @@ def import_knowledge_file(file_name: str) -> str:
     ]
 
     try:
-        knowledge_store.add_documents(docs)
+        store.add_documents(docs)
         return f"成功将 {file_name} 导入知识库，共 {len(chunks)} 个文本块。"
     except Exception as e:
         return f"导入失败: {str(e)}"
@@ -233,6 +273,11 @@ def clear_vector_stores() -> str:
             conn.execute(_text("DROP TABLE IF EXISTS langchain_pg_embedding CASCADE"))
             conn.execute(_text("DROP TABLE IF EXISTS langchain_pg_collection CASCADE"))
             conn.commit()
+        # 重置缓存，下次访问时重新创建
+        global _knowledge_store, _chat_history_store, _dim_warning
+        _knowledge_store = None
+        _chat_history_store = None
+        _dim_warning = None
         return "向量表已清除。请重新导入知识文件和聊天记录。"
     except Exception as e:
         return f"清除失败: {str(e)}"
@@ -244,7 +289,8 @@ def clear_vector_stores() -> str:
 def list_imported_files() -> list:
     """列出已导入知识库的资料文件名（去重）。"""
     try:
-        results = knowledge_store.similarity_search(" ", k=100, filter={"type": "reference_book"})
+        store = get_knowledge_store()
+        results = store.similarity_search(" ", k=100, filter={"type": "reference_book"})
         sources = list(set(doc.metadata.get("source", "unknown") for doc in results))
         return sources
     except Exception:

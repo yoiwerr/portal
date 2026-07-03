@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MakeItSmooth — 个人工作流增强 Agent</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- 粒子背景 -->
+<canvas id="particles"></canvas>
+
+<div class="container">
+  <!-- 头部 -->
+  <header>
+    <h1>MakeItSmooth</h1>
+    <p class="tagline">你说大白话，AI 追问补全需求，输出精准提示词和工作计划</p>
+  </header>
+
+  <!-- 三模块卡片 -->
+  <div class="module-cards">
+    <div class="card" data-module="prompt_refiner" onclick="selectModule('prompt_refiner', this)">
+      <div class="card-icon">✨</div>
+      <div class="card-title">提示词工程</div>
+      <div class="card-desc">大白话 → 追问补全 → 2-3 个优化版提示词，匹配最佳模型</div>
+    </div>
+    <div class="card" data-module="work_arranger" onclick="selectModule('work_arranger', this)">
+      <div class="card-icon">📋</div>
+      <div class="card-title">工作安排交流</div>
+      <div class="card-desc">想法 → 追问 → 结构化工作计划 + 任务拆解 + 时间线</div>
+    </div>
+    <div class="card" data-module="info_retention" onclick="selectModule('info_retention', this)">
+      <div class="card-icon">📁</div>
+      <div class="card-title">信息留存</div>
+      <div class="card-desc">对话 + 文件 → 追问 → 结构化文档，下次可加载继续</div>
+    </div>
+  </div>
+
+  <!-- 模块选中提示 -->
+  <div class="selected-hint" id="selectedHint">← 请先选择一个功能模块</div>
+
+  <!-- 背景输入 -->
+  <div class="bg-input-wrapper" id="bgWrapper" style="display:none">
+    <textarea id="bgInput" placeholder="你的背景和目标（选填）&#10;例如：我是一名前端开发者，正在做电商项目，偏好 React 技术栈" rows="2"></textarea>
+  </div>
+
+  <!-- 对话区域 -->
+  <div class="chat-wrapper" id="chatWrapper">
+    <div class="chat-window" id="chatWindow">
+      <div class="empty-state" id="emptyState">
+        <p>↑ 选择一个功能模块，然后输入你的需求</p>
+        <p class="sub">例：「我想用 React 写一个管理后台，大概 50 人使用，三个月搞定」</p>
+      </div>
+    </div>
+
+    <!-- 输入区 -->
+    <div class="input-area" id="inputArea" style="display:none">
+      <div class="status-bar" id="statusBar">
+        <span id="statusIcon">●</span>
+        <span id="statusText">就绪</span>
+        <span class="status-right" id="statusRight"></span>
+      </div>
+      <div class="input-row">
+        <textarea id="userInput" placeholder="描述你要做的事情..." rows="2" onkeydown="handleKey(event)"></textarea>
+        <button id="sendBtn" onclick="sendMessage()">发送</button>
+        <button id="newBtn" onclick="newSession()">新建</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="js/particles.js"></script>
+<script src="js/chat.js"></script>
+</body>
+</html>

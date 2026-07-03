@@ -1,0 +1,28 @@
+# MakeItSmooth - FastAPI Backend
+# Agent框架: LangGraph + LangChain
+# 推理引擎: SGLang (OpenAI-compatible API)
+# Phase 1: MockLLM 跑通流程，无需 GPU
+
+# Web Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+sse-starlette>=2.0
+
+# Data
+chromadb>=0.4.0,<0.6.0
+httpx>=0.25.0
+pydantic>=2.0
+python-dotenv>=1.0.0
+
+# LangChain + LangGraph 框架
+langchain>=0.3.0
+langgraph>=0.2.0
+langchain-openai>=0.3.0
+
+# Phase 2: SGLang 推理引擎（需要 GPU + Linux）
+# 启动方式: python -m sglang.launch_server --model deepseek-ai/DeepSeek-R1-Distill-Qwen-7B --port 30000
+# sglang>=0.3.0
+
+# 测试
+pytest>=7.0
+pytest-asyncio>=0.21.0

@@ -1,0 +1,19 @@
+[project]
+name = "makeitsmooth"
+version = "0.1.0"
+description = "个人工作流增强 Agent — LangGraph + LangChain + FastAPI"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    "sse-starlette>=2.0",
+    "chromadb>=0.4.0,<0.6.0",
+    "httpx>=0.25.0",
+    "pydantic>=2.0",
+    "python-dotenv>=1.0.0",
+    "langchain>=0.3.0",
+    "langgraph>=0.2.0",
+    "langchain-openai>=0.3.0",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21.0",
+]

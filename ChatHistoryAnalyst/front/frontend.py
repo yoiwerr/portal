@@ -46,7 +46,7 @@ st.markdown("""
     .block-container {
         padding-top: 1.2rem;
         padding-bottom: 2rem;
-        max-width: 1100px;
+        max-width: 1280px;
     }
 
     /* ── Typography ────────────────────────────── */
@@ -377,10 +377,47 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# ── Shared helpers ──
+def _get_chats():
+    result = list(st.session_state.get("parsed_chats", []))
+    if not result and st.session_state.get("manual_input", "").strip():
+        pattern = r"\[(.*?)\s+(.*?)\][:：]\s*(.*)"
+        for line in st.session_state.manual_input.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            m = re.match(pattern, line)
+            if m:
+                sender, time, content = m.groups()
+                result.append({"sender": sender, "content": content, "timestamp": time})
+    return result
+
+
+def _build_payload():
+    return {
+        "target_person": st.session_state.get("cfg_target", "对方"),
+        "recent_chat": _get_chats(),
+        "background_info": st.session_state.get("cfg_bg", "").strip() or None,
+    }
+
+
+def _call_skill(endpoint: str, payload: dict) -> dict | None:
+    try:
+        resp = requests.post(f"{BASE_URL}/{endpoint}", json=payload, timeout=120)
+    except requests.ConnectionError:
+        st.error("无法连接后端，请确认服务已启动")
+        return None
+    if resp.status_code != 200:
+        st.error(f"请求失败 HTTP {resp.status_code}")
+        st.code(resp.text[:500])
+        return None
+    return resp.json()
+
+
 st.markdown("---")
 
 # ── Two-column layout ──
-left, right = st.columns([5, 3.5], gap="medium")
+left, right = st.columns([5, 4], gap="medium")
 
 with left:
     st.markdown(
@@ -568,178 +605,134 @@ with right:
             st.session_state.result_tab = "atmosphere"
             st.rerun()
 
+    # ── Result display ──────────────────────────
+    st.markdown("---")
 
-st.markdown("---")
+    tab = st.session_state.get("result_tab")
 
+    if tab is None:
+        st.markdown("""
+        <div class="empty-state">
+            <p>↑ 选择分析类型</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-# ═══════════════════════════════════════════════════
-# Result display
-# ═══════════════════════════════════════════════════
-
-def _get_chats():
-    result = list(st.session_state.get("parsed_chats", []))
-    if not result and st.session_state.get("manual_input", "").strip():
-        pattern = r"\[(.*?)\s+(.*?)\][:：]\s*(.*)"
-        for line in st.session_state.manual_input.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            m = re.match(pattern, line)
-            if m:
-                sender, time, content = m.groups()
-                result.append({"sender": sender, "content": content, "timestamp": time})
-    return result
-
-
-def _build_payload():
-    return {
-        "target_person": st.session_state.get("cfg_target", "对方"),
-        "recent_chat": _get_chats(),
-        "background_info": st.session_state.get("cfg_bg", "").strip() or None,
-    }
-
-
-def _call_skill(endpoint: str, payload: dict) -> dict | None:
-    try:
-        resp = requests.post(f"{BASE_URL}/{endpoint}", json=payload, timeout=120)
-    except requests.ConnectionError:
-        st.error("无法连接后端，请确认服务已启动")
-        return None
-    if resp.status_code != 200:
-        st.error(f"请求失败 HTTP {resp.status_code}")
-        st.code(resp.text[:500])
-        return None
-    return resp.json()
-
-
-tab = st.session_state.get("result_tab")
-
-if tab is None:
-    st.markdown("""
-    <div class="empty-state">
-        <p>↑ 上传聊天记录并选择分析类型</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-elif tab == "imitate":
-    st.markdown(
-        '<p style="font-size:0.75rem;font-weight:500;color:var(--fg);'
-        'letter-spacing:-0.01em;margin-bottom:0.5rem;">模仿回复</p>',
-        unsafe_allow_html=True,
-    )
-    chats = _get_chats()
-    if not chats:
-        st.warning("请先导入聊天记录")
-    else:
-        with st.spinner("分析中…"):
-            data = _call_skill("imitate", _build_payload())
-        if data:
-            st.markdown(
-                '<p style="font-size:0.65rem;font-weight:500;color:var(--fg-muted);'
-                'text-transform:uppercase;letter-spacing:0.06em;">对方可能会这样回复</p>',
-                unsafe_allow_html=True,
-            )
-            st.info(data.get("reply", "—"))
-            st.caption("AI 生成 · 仅供娱乐")
-
-elif tab == "emotion":
-    st.markdown(
-        '<p style="font-size:0.75rem;font-weight:500;color:var(--fg);'
-        'letter-spacing:-0.01em;margin-bottom:0.5rem;">情感状态</p>',
-        unsafe_allow_html=True,
-    )
-    chats = _get_chats()
-    if not chats:
-        st.warning("请先导入聊天记录")
-    else:
-        with st.spinner("分析中…"):
-            data = _call_skill("emotion_analyze", _build_payload())
-        if data:
-            score = data.get("emotion_score", 0)
-            if score >= 70:
-                score_color = "var(--green)"
-                emoji = "↑"
-            elif score >= 40:
-                score_color = "var(--amber)"
-                emoji = "→"
-            else:
-                score_color = "var(--red)"
-                emoji = "↓"
-
-            m1, m2, m3 = st.columns([1, 1, 2])
-            with m1:
-                st.markdown(f"""
-                <div class="metric">
-                    <div class="metric-value" style="color:{score_color};">{score}</div>
-                    <div class="metric-label">情感指数 / 100</div>
-                </div>
-                """, unsafe_allow_html=True)
-            with m2:
-                emotion = data.get('dominant_emotion', '—')
-                st.markdown(f"""
-                <div class="metric">
-                    <div style="font-size:1.8rem;line-height:1;">{emoji}</div>
-                    <div class="metric-label">主导情绪</div>
-                    <span class="tag">{emotion}</span>
-                </div>
-                """, unsafe_allow_html=True)
-            with m3:
+    elif tab == "imitate":
+        st.markdown(
+            '<p style="font-size:0.75rem;font-weight:500;color:var(--fg);'
+            'letter-spacing:-0.01em;margin-bottom:0.5rem;">模仿回复</p>',
+            unsafe_allow_html=True,
+        )
+        chats = _get_chats()
+        if not chats:
+            st.warning("请先导入聊天记录")
+        else:
+            with st.spinner("分析中…"):
+                data = _call_skill("imitate", _build_payload())
+            if data:
                 st.markdown(
                     '<p style="font-size:0.65rem;font-weight:500;color:var(--fg-muted);'
-                    'text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.2rem;">分析依据</p>',
+                    'text-transform:uppercase;letter-spacing:0.06em;">对方可能会这样回复</p>',
+                    unsafe_allow_html=True,
+                )
+                st.info(data.get("reply", "—"))
+                st.caption("AI 生成 · 仅供娱乐")
+
+    elif tab == "emotion":
+        st.markdown(
+            '<p style="font-size:0.75rem;font-weight:500;color:var(--fg);'
+            'letter-spacing:-0.01em;margin-bottom:0.5rem;">情感状态</p>',
+            unsafe_allow_html=True,
+        )
+        chats = _get_chats()
+        if not chats:
+            st.warning("请先导入聊天记录")
+        else:
+            with st.spinner("分析中…"):
+                data = _call_skill("emotion_analyze", _build_payload())
+            if data:
+                score = data.get("emotion_score", 0)
+                if score >= 70:
+                    score_color = "var(--green)"
+                    emoji = "↑"
+                elif score >= 40:
+                    score_color = "var(--amber)"
+                    emoji = "→"
+                else:
+                    score_color = "var(--red)"
+                    emoji = "↓"
+
+                m1, m2 = st.columns(2)
+                with m1:
+                    st.markdown(f"""
+                    <div class="metric">
+                        <div class="metric-value" style="color:{score_color};">{score}</div>
+                        <div class="metric-label">情感指数 / 100</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with m2:
+                    emotion = data.get('dominant_emotion', '—')
+                    st.markdown(f"""
+                    <div class="metric">
+                        <div style="font-size:1.8rem;line-height:1;">{emoji}</div>
+                        <div class="metric-label">主导情绪</div>
+                        <span class="tag">{emotion}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                st.markdown(
+                    '<p style="font-size:0.65rem;font-weight:500;color:var(--fg-muted);'
+                    'text-transform:uppercase;letter-spacing:0.06em;margin:0.3rem 0 0.2rem;">分析依据</p>',
                     unsafe_allow_html=True,
                 )
                 st.caption(data.get("analysis_reasoning", "—"))
 
-elif tab == "atmosphere":
-    st.markdown(
-        '<p style="font-size:0.75rem;font-weight:500;color:var(--fg);'
-        'letter-spacing:-0.01em;margin-bottom:0.5rem;">沟通气氛</p>',
-        unsafe_allow_html=True,
-    )
-    chats = _get_chats()
-    if not chats:
-        st.warning("请先导入聊天记录")
-    else:
-        with st.spinner("分析中…"):
-            data = _call_skill("analyze_atmosphere", _build_payload())
-        if data:
-            ca, cb = st.columns(2)
-            with ca:
+    elif tab == "atmosphere":
+        st.markdown(
+            '<p style="font-size:0.75rem;font-weight:500;color:var(--fg);'
+            'letter-spacing:-0.01em;margin-bottom:0.5rem;">沟通气氛</p>',
+            unsafe_allow_html=True,
+        )
+        chats = _get_chats()
+        if not chats:
+            st.warning("请先导入聊天记录")
+        else:
+            with st.spinner("分析中…"):
+                data = _call_skill("analyze_atmosphere", _build_payload())
+            if data:
                 st.markdown(
                     '<p style="font-size:0.65rem;color:var(--fg-muted);'
                     'text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.2rem;">气氛总结</p>',
                     unsafe_allow_html=True,
                 )
                 st.info(data.get("atmosphere_summary", "—"))
-            with cb:
+
                 st.markdown(
                     '<p style="font-size:0.65rem;color:var(--fg-muted);'
-                    'text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.2rem;">权力动态</p>',
+                    'text-transform:uppercase;letter-spacing:0.06em;margin:0.5rem 0 0.2rem;">权力动态</p>',
                     unsafe_allow_html=True,
                 )
                 st.success(data.get("power_dynamic", "—"))
 
-            st.markdown(
-                '<p style="font-size:0.65rem;color:var(--fg-muted);'
-                'text-transform:uppercase;letter-spacing:0.06em;margin:0.4rem 0 0.3rem;">行动建议</p>',
-                unsafe_allow_html=True,
-            )
-            suggestions = data.get("actionable_suggestions", [])
-            if suggestions:
-                for i, s in enumerate(suggestions):
-                    st.markdown(f"""
-                    <div class="step">
-                        <span class="step-num">{i + 1}</span>
-                        <span>{s}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-            else:
-                st.write("—")
+                st.markdown(
+                    '<p style="font-size:0.65rem;color:var(--fg-muted);'
+                    'text-transform:uppercase;letter-spacing:0.06em;margin:0.4rem 0 0.3rem;">行动建议</p>',
+                    unsafe_allow_html=True,
+                )
+                suggestions = data.get("actionable_suggestions", [])
+                if suggestions:
+                    for i, s in enumerate(suggestions):
+                        st.markdown(f"""
+                        <div class="step">
+                            <span class="step-num">{i + 1}</span>
+                            <span>{s}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.write("—")
 
-# ── Reset ──
-if tab is not None:
-    st.markdown("---")
-    if st.button("清空结果", use_container_width=False):
-        st.session_state.result_tab = None
-        st.rerun()
+    # ── Reset ──
+    if tab is not None:
+        st.markdown("---")
+        if st.button("清空结果", use_container_width=True):
+            st.session_state.result_tab = None
+            st.rerun()

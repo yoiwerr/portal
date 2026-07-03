@@ -18,7 +18,7 @@ services:
   api:
     build: .
     container_name: chalab-api
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 120
     environment:
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
       TAVILY_API_KEY: ${TAVILY_API_KEY}
@@ -30,6 +30,14 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"from urllib.request import urlopen; urlopen('http://localhost:8000/api/v1/imported_files')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   streamlit:
     build: .

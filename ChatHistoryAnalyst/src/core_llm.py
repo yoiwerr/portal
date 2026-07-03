@@ -4,7 +4,6 @@ from dotenv import load_dotenv
 # 弃用有 Bug 的 OpenAI 兼容层
 # from langchain.chat_models import init_chat_model
 
-# 引入原生的 通义千问 模块
 from langchain_community.chat_models.tongyi import ChatTongyi
 
 load_dotenv()

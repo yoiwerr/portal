@@ -6,7 +6,7 @@ from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from langchain_core.messages import HumanMessage
 
@@ -285,6 +285,12 @@ async def chatlab_page():
     """ChatLab 前端页面"""
     with open(os.path.join(_STATIC_DIR, "chatlab.html"), encoding="utf-8") as f:
         return f.read()
+
+
+@app.get("/smooth")
+async def smooth_redirect():
+    """MakeItSmooth — 本地开发时重定向到 :8001"""
+    return RedirectResponse(url="http://localhost:8001")
 
 
 app.mount("/css", StaticFiles(directory=os.path.join(_STATIC_DIR, "css")), name="css")

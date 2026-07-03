@@ -2,7 +2,7 @@
 from langchain_core.tools import tool
 # 1. 换回最新版推荐的导入方式，消除警告
 from langchain_tavily import TavilySearch
-from src.rag_function import knowledge_store, save_chats_to_long_term_memory, chat_history_store
+from src.rag_function import get_knowledge_store, get_chat_history_store, save_chats_to_long_term_memory
 
 
 # ==========================================
@@ -20,7 +20,7 @@ def search_psychology_knowledge(query: str) -> str:
     """
     print(f"🛠️ [Tool调用] 正在知识库中检索: {query}")
     try:
-        results_with_score = knowledge_store.similarity_search_with_score(query, k=5)
+        results_with_score = get_knowledge_store().similarity_search_with_score(query, k=5)
     except Exception as e:
         err = str(e)
         if "different vector dimensions" in err:
@@ -52,7 +52,7 @@ def search_chat_history(query: str, target_person: str = "") -> str:
         search_filter["target_person"] = target_person
 
     try:
-        results_with_score = chat_history_store.similarity_search_with_score(
+        results_with_score = get_chat_history_store().similarity_search_with_score(
             query, k=5, filter=search_filter
         )
     except Exception as e:

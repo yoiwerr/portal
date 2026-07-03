@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Portal dev runner — start FastAPI + Streamlit, stop cleanly on Ctrl+C.
+Portal dev runner — start ChatLab FastAPI + MakeItSmooth, stop cleanly on Ctrl+C.
 
 Replaces the inline shell approach in the Makefile so that:
 - SIGINT / SIGTERM are caught reliably (no make signal interception issues)
-- Both uvicorn and streamlit subprocesses are terminated before exit
+- All uvicorn subprocesses are terminated before exit
 - The terminal returns to a clean state every time
 """
 
@@ -44,31 +44,32 @@ def main():
     signal.signal(signal.SIGTERM, stop)
 
     root = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(os.path.join(root, "ChatHistoryAnalyst"))
 
-    print("[+] Starting FastAPI  on http://localhost:8000")
-    print("[+] Starting Streamlit on http://localhost:8501")
+    print("[+] Starting FastAPI        on http://localhost:8000")
+    print("[+] Starting MakeItSmooth    on http://localhost:8001")
     print("[+] Press Ctrl+C to stop")
     print()
 
-    # Start uvicorn first, wait a moment, then start streamlit
-    # so `uv` doesn't contend for the same lock
+    # ── ChatLab FastAPI (port 8000) ── (先启：uv sync 安装依赖)
+    os.chdir(os.path.join(root, "ChatHistoryAnalyst"))
+
     api = subprocess.Popen(
-        ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"],
+        ["uv", "run", "--active", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"],
         stdout=sys.stdout, stderr=sys.stderr,
     )
     PROCS.append(api)
 
-    time.sleep(2)  # let uvicorn finish binding before streamlit starts
+    time.sleep(3)  # let uvicorn finish binding + uv sync
 
-    sl = subprocess.Popen(
-        [
-            "uv", "run", "streamlit", "run", "front/frontend.py",
-            "--server.port", "8501", "--server.headless", "true",
-        ],
+    # ── MakeItSmooth (port 8001) ──
+    smooth = subprocess.Popen(
+        ["uv", "run", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001"],
+        cwd=os.path.join(root, "MakeItSmooth"),
         stdout=sys.stdout, stderr=sys.stderr,
     )
-    PROCS.append(sl)
+    PROCS.append(smooth)
+
+    time.sleep(2)  # let MakeItSmooth finish binding
 
     # Wait until interrupted or a process dies unexpectedly
     try:

@@ -9,10 +9,10 @@
 在本地开发机上执行：
 
 ```bash
-cd ~/portal/ChatHistoryAnalyst
+cd ~/portal
 git add .
-git commit -m "重构：多项目门户架构"
-git push origin main
+git commit -m "update: portal 多项目更新"
+git push origin master
 ```
 
 - [ ] 已推送
@@ -67,10 +67,10 @@ sudo ufw enable
 ## 步骤 4：克隆项目
 
 ```bash
-git clone <your-repo-url> ~/portal/ChatHistoryAnalyst
+git clone https://github.com/yoiwerr/portal.git ~/portal
 ```
 
-然后手动创建 portal 目录结构，或直接从本地 scp 整个 `~/portal/` 目录到服务器：
+或直接从本地 scp 整个 `~/portal/` 目录到服务器：
 
 ```bash
 # 从本地
@@ -98,16 +98,18 @@ chmod +x scripts/deploy.sh
 ```bash
 cd ~/portal
 docker compose ps
-# 应该看到：portal-nginx、chalab-api、chalab-streamlit、chalab-postgres
+# 应该看到：portal-nginx、chalab-api、chalab-streamlit、chalab-postgres、smooth-api
 
-curl http://localhost          # 首页 HTML
-curl http://localhost/api/v1/imported_files  # API JSON
+curl http://localhost               # 首页 HTML
+curl http://localhost/api/v1/imported_files  # ChatLab API
+curl http://localhost/smooth/api/health      # MakeItSmooth API
 ```
 
 浏览器访问 `http://<服务器公网IP>`
 
 - [ ] 首页正常
 - [ ] ChatLab 正常
+- [ ] MakeItSmooth 正常
 - [ ] API 正常
 
 ---
@@ -118,7 +120,9 @@ curl http://localhost/api/v1/imported_files  # API JSON
 |------|------|
 | 首页 | `http://<IP>` |
 | ChatLab | `http://<IP>/chatlab` |
-| API 文档 | `http://<IP>/api/docs` |
+| MakeItSmooth | `http://<IP>/smooth` |
+| ChatLab API 文档 | `http://<IP>/api/docs` |
+| Smooth API 文档 | `http://<IP>/smooth/docs` |
 
 ---
 
@@ -127,11 +131,13 @@ curl http://localhost/api/v1/imported_files  # API JSON
 ```bash
 cd ~/portal
 
-docker compose logs -f              # 实时日志
-docker compose logs api             # 只看 API
-docker compose restart api          # 重启 API
-docker compose down                 # 停止
-docker compose up -d --build        # 重建启动
+docker compose logs -f              # 实时日志（全部服务）
+docker compose logs api             # 只看 ChatLab API
+docker compose logs smooth-api      # 只看 MakeItSmooth API
+docker compose restart api          # 重启 ChatLab API
+docker compose restart smooth-api   # 重启 MakeItSmooth
+docker compose down                 # 停止全部
+docker compose up -d --build        # 重建启动全部
 ```
 
 ## 添加新子项目
@@ -147,5 +153,9 @@ docker compose up -d --build        # 重建启动
 ## 数据备份
 
 ```bash
-docker compose exec postgres pg_dump -U postgres chatdemopg > backup_$(date +%Y%m%d).sql
+# ChatLab PostgreSQL
+docker compose exec postgres pg_dump -U postgres chatdemopg > backup_chatlab_$(date +%Y%m%d).sql
+
+# MakeItSmooth SQLite + ChromaDB (在 smoothdata volume 中)
+docker compose exec smooth-api tar czf - /app/data > backup_smooth_$(date +%Y%m%d).tar.gz
 ```
