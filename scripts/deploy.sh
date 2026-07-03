@@ -17,20 +17,16 @@ fi
 if [ ! -f .env ]; then
     echo ""
     echo "[SETUP] Creating .env..."
-    read -rp "  DashScope API Key: " DASHSCOPE_KEY
+    read -rp "  DashScope API Key (ChatLab + MakeItSmooth 共用): " DASHSCOPE_KEY
     read -rp "  Tavily API Key: " TAVILY_KEY
     read -rp "  LangSmith API Key (Enter to skip): " LANGSMITH_KEY
     read -rp "  PostgreSQL Password: " PG_PASS
-    read -rp "  SGLang URL (default http://localhost:30000/v1): " SGLANG_URL
-    SGLANG_URL=${SGLANG_URL:-http://localhost:30000/v1}
 
     cat > .env <<EOF
 DASHSCOPE_API_KEY=${DASHSCOPE_KEY}
 TAVILY_API_KEY=${TAVILY_KEY}
 LANGSMITH_API_KEY=${LANGSMITH_KEY}
 PGSQLPASSWORD=${PG_PASS}
-SGLANG_BASE_URL=${SGLANG_URL}
-SGLANG_MODEL=deepseek-r1-7b
 EOF
     echo "[OK] .env created."
 else

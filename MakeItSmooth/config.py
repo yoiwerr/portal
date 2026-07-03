@@ -1,13 +1,16 @@
 """
 MakeItSmooth 全局配置。
 
-推理引擎: SGLang (OpenAI-compatible API)
+推理引擎: DashScope (通义千问) — 对齐 ChatLab
 Agent 框架: LangGraph + LangChain
 """
 
 import os
 from pathlib import Path
 from dataclasses import dataclass, field
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 @dataclass
@@ -26,11 +29,11 @@ class Config:
     api_host: str = "0.0.0.0"
     api_port: int = 8000
 
-    # === SGLang / LLM 配置 ===
-    sglang_base_url: str = "http://localhost:30000/v1"
-    sglang_model: str = "deepseek-r1-7b"
-    sglang_timeout: float = 120.0
+    # === LLM 配置（DashScope，对齐 ChatLab） ===
+    dashscope_api_key: str = ""
+    llm_model: str = "qwen3-max"
     llm_temperature: float = 0.7
+    llm_timeout: float = 120.0
 
     # === 追问引擎配置 ===
     clarify_threshold: float = 0.75
@@ -84,8 +87,8 @@ class Config:
         config = cls()
         config.api_port = int(os.getenv("API_PORT", str(config.api_port)))
         config.api_host = os.getenv("API_HOST", config.api_host)
-        config.sglang_base_url = os.getenv("SGLANG_BASE_URL", config.sglang_base_url)
-        config.sglang_model = os.getenv("SGLANG_MODEL", config.sglang_model)
+        config.dashscope_api_key = os.getenv("DASHSCOPE_API_KEY", "")
+        config.llm_model = os.getenv("LLM_MODEL", config.llm_model)
         config.search_api_key = os.getenv("SEARCH_API_KEY", "")
         return config
 

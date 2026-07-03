@@ -49,7 +49,8 @@ def create_app() -> FastAPI:
     print("=" * 60)
     print("  MakeItSmooth - 个人工作流增强 Agent")
     print("  LangGraph + LangChain Agent + FastAPI")
-    print(f"  Model: {config.sglang_model} @ {config.sglang_base_url}")
+    print(f"  LLM: {config.llm_model} @ DashScope")
+    print(f"  Embedding: text-embedding-v3")
     print("=" * 60)
 
     print(f"\n[Data] {config.data_dir}")
@@ -58,7 +59,7 @@ def create_app() -> FastAPI:
 
     print("\n[Init] 初始化服务...")
     session_store = SessionStore(config.db_path)
-    rag_service = RAGService(config.chroma_path, config.knowledge_base_dir)
+    rag_service = RAGService(config.chroma_path, config.knowledge_base_dir, api_key=config.dashscope_api_key)
     model = create_model(config)
 
     stats = rag_service.get_kb_stats()
@@ -102,8 +103,8 @@ def create_app() -> FastAPI:
     async def health():
         return {
             "status": "ok",
-            "model": config.sglang_model,
-            "sglang_url": config.sglang_base_url,
+            "llm": config.llm_model,
+            "provider": "dashscope",
             "kb_stats": rag_service.get_kb_stats(),
         }
 

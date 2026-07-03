@@ -1,0 +1,21 @@
+services:
+  smooth-api:
+    build: .
+    container_name: smooth-api
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 120
+    environment:
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+    volumes:
+      - smoothdata:/app/data
+    restart: unless-stopped
+    mem_limit: 2g
+    mem_reservation: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  smoothdata:
