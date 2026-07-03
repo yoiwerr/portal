@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MakeItSmooth — 个人工作流增强 Agent</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -15,7 +16,9 @@
   <!-- 头部 -->
   <header>
     <h1>MakeItSmooth</h1>
-    <p class="tagline">你说大白话，AI 追问补全需求，输出精准提示词和工作计划</p>
+    <p class="tagline">
+      你说大白话，AI 追问补全需求，输出精准提示词和工作计划
+    </p>
   </header>
 
   <!-- 三模块卡片 -->
@@ -38,18 +41,24 @@
   </div>
 
   <!-- 模块选中提示 -->
-  <div class="selected-hint" id="selectedHint">← 请先选择一个功能模块</div>
+  <div class="selected-hint" id="selectedHint">
+    <span class="hint-arrow">👆</span> 请先选择一个功能模块
+  </div>
 
   <!-- 背景输入 -->
   <div class="bg-input-wrapper" id="bgWrapper" style="display:none">
-    <textarea id="bgInput" placeholder="你的背景和目标（选填）&#10;例如：我是一名前端开发者，正在做电商项目，偏好 React 技术栈" rows="2"></textarea>
+    <label class="input-label" for="bgInput">📝 背景与目标（选填）</label>
+    <textarea id="bgInput"
+      placeholder="例如：我是一名前端开发者，正在做电商项目，偏好 React 技术栈"
+      rows="2"></textarea>
   </div>
 
   <!-- 对话区域 -->
   <div class="chat-wrapper" id="chatWrapper">
     <div class="chat-window" id="chatWindow">
       <div class="empty-state" id="emptyState">
-        <p>↑ 选择一个功能模块，然后输入你的需求</p>
+        <div class="empty-icon">💬</div>
+        <p>选择一个功能模块，然后输入你的需求</p>
         <p class="sub">例：「我想用 React 写一个管理后台，大概 50 人使用，三个月搞定」</p>
       </div>
     </div>
@@ -68,6 +77,13 @@
       </div>
     </div>
   </div>
+
+  <!-- Footer -->
+  <footer class="page-footer">
+    <a href="/">← 返回首页</a>
+    <span class="footer-dot">·</span>
+    <span class="footer-ver">MakeItSmooth v1.0</span>
+  </footer>
 </div>
 
 <script src="js/particles.js"></script>
