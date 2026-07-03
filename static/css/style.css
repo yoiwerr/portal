@@ -30,9 +30,9 @@
   --iron-glass:   oklch(0.55 0.03 240 / 0.08);
 
   /* Typography */
-  --font-display: 'Cinzel', 'Noto Serif SC', serif;
-  --font-body:    'Noto Serif SC', serif;
-  --font-mono:    'JetBrains Mono', 'Fira Code', monospace;
+  --font-display: 'Georgia', 'Times New Roman', 'Noto Serif SC', serif;
+  --font-body:    'PingFang SC', 'Microsoft YaHei', 'Noto Serif SC', 'Hiragino Sans GB', 'STSong', serif;
+  --font-mono:    'Consolas', 'Courier New', 'Monaco', monospace;
 
   /* Sizing */
   --sidebar-w: 370px;
