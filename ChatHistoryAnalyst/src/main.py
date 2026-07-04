@@ -271,29 +271,31 @@ async def clear_vector_store_endpoint():
 # ── Homepage (local dev) ─────────────────────────────
 
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "static")
+_IS_DOCKER = not os.path.isdir(_STATIC_DIR)  # Docker 中 nginx 提供静态文件
 
 
-@app.get("/", response_class=HTMLResponse)
-async def homepage():
-    """首页"""
-    with open(os.path.join(_STATIC_DIR, "index.html"), encoding="utf-8") as f:
-        return f.read()
+if not _IS_DOCKER:
+    @app.get("/", response_class=HTMLResponse)
+    async def homepage():
+        """首页"""
+        with open(os.path.join(_STATIC_DIR, "index.html"), encoding="utf-8") as f:
+            return f.read()
 
 
-@app.get("/chatlab", response_class=HTMLResponse)
-async def chatlab_page():
-    """ChatLab 前端页面"""
-    with open(os.path.join(_STATIC_DIR, "chatlab.html"), encoding="utf-8") as f:
-        return f.read()
+    @app.get("/chatlab", response_class=HTMLResponse)
+    async def chatlab_page():
+        """ChatLab 前端页面"""
+        with open(os.path.join(_STATIC_DIR, "chatlab.html"), encoding="utf-8") as f:
+            return f.read()
 
 
-@app.get("/smooth")
-async def smooth_redirect():
-    """MakeItSmooth — 本地开发时重定向到 :8001"""
-    return RedirectResponse(url="http://localhost:8001")
+    @app.get("/smooth")
+    async def smooth_redirect():
+        """MakeItSmooth — 本地开发时重定向到 :8001"""
+        return RedirectResponse(url="http://localhost:8001")
 
 
-app.mount("/css", StaticFiles(directory=os.path.join(_STATIC_DIR, "css")), name="css")
-app.mount("/js", StaticFiles(directory=os.path.join(_STATIC_DIR, "js")), name="js")
-app.mount("/bgm", StaticFiles(directory=os.path.join(_STATIC_DIR, "bgm")), name="bgm")
-app.mount("/photo", StaticFiles(directory=os.path.join(_STATIC_DIR, "photo")), name="photo")
+    app.mount("/css", StaticFiles(directory=os.path.join(_STATIC_DIR, "css")), name="css")
+    app.mount("/js", StaticFiles(directory=os.path.join(_STATIC_DIR, "js")), name="js")
+    app.mount("/bgm", StaticFiles(directory=os.path.join(_STATIC_DIR, "bgm")), name="bgm")
+    app.mount("/photo", StaticFiles(directory=os.path.join(_STATIC_DIR, "photo")), name="photo")
