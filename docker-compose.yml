@@ -8,9 +8,13 @@ services:
     container_name: portal-nginx
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./static:/usr/share/nginx/html:ro
+      - /etc/letsencrypt/live/yoiwerr.site/fullchain.pem:/etc/letsencrypt/live/yoiwerr.site/fullchain.pem:ro
+      - /etc/letsencrypt/live/yoiwerr.site/privkey.pem:/etc/letsencrypt/live/yoiwerr.site/privkey.pem:ro
+      - /etc/letsencrypt/archive:/etc/letsencrypt/archive:ro
     depends_on:
       - api
       - smooth-api
