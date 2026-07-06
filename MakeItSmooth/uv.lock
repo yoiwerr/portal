@@ -1204,6 +1204,7 @@ dependencies = [
     { name = "langchain" },
     { name = "langchain-community" },
     { name = "langgraph" },
+    { name = "posthog" },
     { name = "pydantic" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -1221,6 +1222,7 @@ requires-dist = [
     { name = "langchain", specifier = ">=0.3.0" },
     { name = "langchain-community", specifier = ">=0.3.0" },
     { name = "langgraph", specifier = ">=0.2.0" },
+    { name = "posthog", specifier = "<6.0" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pytest", specifier = ">=7.0" },
     { name = "pytest-asyncio", specifier = ">=0.21.0" },
@@ -1781,17 +1783,18 @@ wheels = [
 
 [[package]]
 name = "posthog"
-version = "7.21.3"
+version = "5.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "backoff" },
     { name = "distro" },
+    { name = "python-dateutil" },
     { name = "requests" },
-    { name = "typing-extensions" },
+    { name = "six" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e3/d4/ac12ee84633287c719cbbe5e8c9bee23777f87ed25190ad18bf003787b18/posthog-7.21.3.tar.gz", hash = "sha256:2192497210bb1291587c51bdd6edc475043aebe03072d718431e710360fcd329", size = 308297, upload-time = "2026-07-02T15:05:08.37Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/48/20/60ae67bb9d82f00427946218d49e2e7e80fb41c15dc5019482289ec9ce8d/posthog-5.4.0.tar.gz", hash = "sha256:701669261b8d07cdde0276e5bc096b87f9e200e3b9589c5ebff14df658c5893c", size = 88076, upload-time = "2025-06-20T23:19:23.485Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c6/53/0cbf0aa0b90be2076e5f8297b57c222adc6fe06ae46914cba419d35603da/posthog-7.21.3-py3-none-any.whl", hash = "sha256:eb6ad7e1704c0797e9cbfe0518bfb40bc3a56e3f140fd565d2a1d854c9615710", size = 370434, upload-time = "2026-07-02T15:05:06.79Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/98/e480cab9a08d1c09b1c59a93dade92c1bb7544826684ff2acbfd10fcfbd4/posthog-5.4.0-py3-none-any.whl", hash = "sha256:284dfa302f64353484420b52d4ad81ff5c2c2d1d607c4e2db602ac72761831bd", size = 105364, upload-time = "2025-06-20T23:19:22.001Z" },
 ]
 
 [[package]]

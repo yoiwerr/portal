@@ -20,7 +20,7 @@ def create_model(config=None):
     彻底避开 OpenAI 兼容层转换问题。
     """
     api_key = ""
-    model_name = "qwen3-max"
+    model_name = "qwen3.6-flash"
     temperature = 0.7
     timeout = 120.0
 

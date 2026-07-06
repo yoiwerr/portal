@@ -57,6 +57,8 @@ header h1 {
   font-size: 2.4rem;
   font-weight: 600;
   letter-spacing: -0.03em;
+  /* fallback for browsers that don't support background-clip: text */
+  color: #a78bfa;
   background: linear-gradient(135deg, #818cf8 0%, #a78bfa 45%, #c084fc 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

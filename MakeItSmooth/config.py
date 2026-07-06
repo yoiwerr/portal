@@ -31,7 +31,7 @@ class Config:
 
     # === LLM 配置（DashScope，对齐 ChatLab） ===
     dashscope_api_key: str = ""
-    llm_model: str = "qwen3-max"
+    llm_model: str = "qwen3.6-flash"
     llm_temperature: float = 0.7
     llm_timeout: float = 120.0
 

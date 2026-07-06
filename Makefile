@@ -1,9 +1,13 @@
-.PHONY: dev dev-win
+.PHONY: dev dev-wsl
 
-# Run services inside WSL (avoids Windows UNC path DLL issues)
+# Auto-detect: runs inside WSL directly, or from Windows via `wsl.exe` command
 dev:
-	@wsl bash -c "cd /home/yoiwerr/portal && python3 run_dev.py"
+	@if [ -f /proc/sys/fs/binfmt_misc/WSLInterop ] 2>/dev/null; then \
+		python3 run_dev.py; \
+	else \
+		wsl.exe bash -c "cd /home/yoiwerr/portal && python3 run_dev.py"; \
+	fi
 
-# Run from Git Bash / Windows directly (requires uv on PATH)
-dev-win:
-	@python3 run_dev.py
+# Force run from Windows side via `wsl.exe` (even if already in WSL)
+dev-wsl:
+	@wsl.exe bash -c "cd /home/yoiwerr/portal && python3 run_dev.py"

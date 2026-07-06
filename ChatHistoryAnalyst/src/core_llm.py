@@ -15,7 +15,7 @@ if not api_key:
 
 # 使用原生 API，完美支持 Agent 工具调用，彻底避开 OpenAI 兼容层转换崩溃问题
 base_llm = ChatTongyi(
-    model="qwen3-max",
+    model="qwen3.6-flash",
     dashscope_api_key=api_key
 )
 vision_llm = ChatTongyi(

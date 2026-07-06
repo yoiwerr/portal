@@ -2,7 +2,7 @@
 MakeItSmooth - 个人工作流增强 Agent
 
 框架: LangGraph + LangChain Agent + FastAPI
-推理: SGLang (OpenAI-compatible API)
+推理: DashScope (通义千问)
 
 启动方式:
     python app.py
@@ -10,8 +10,13 @@ MakeItSmooth - 个人工作流增强 Agent
     API 文档: http://127.0.0.1:8000/docs
 """
 
+import os
 import sys
 from pathlib import Path
+
+# ── 抑制 ChromaDB telemetry (chromadb 0.5.x 在 WSL 环境中有 posthog capture 签名不兼容) ──
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+os.environ.setdefault("CHROMA_TELEMETRY_IMPL", "none")
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -40,7 +45,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -95,8 +100,19 @@ def create_app() -> FastAPI:
             return f.read()
 
     if static_dir.exists():
-        app.mount("/css", StaticFiles(directory=str(static_dir / "css")), name="css")
-        app.mount("/js", StaticFiles(directory=str(static_dir / "js")), name="js")
+        # StaticFiles with cache headers (7d) for production
+        from starlette.staticfiles import StaticFiles as _SF
+        class _CachedStaticFiles(_SF):
+            async def __call__(self, scope, receive, send):
+                async def _send(msg):
+                    if msg["type"] == "http.response.start":
+                        headers = {h[0]: h[1] for h in msg.get("headers", [])}
+                        headers.setdefault(b"cache-control", b"public, max-age=604800")
+                        msg["headers"] = [(k, v) for k, v in headers.items()]
+                    await send(msg)
+                await super().__call__(scope, receive, _send)
+        app.mount("/css", _CachedStaticFiles(directory=str(static_dir / "css")), name="css")
+        app.mount("/js", _CachedStaticFiles(directory=str(static_dir / "js")), name="js")
 
     # ── 健康检查 ──
     @app.get("/api/health")

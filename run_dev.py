@@ -43,7 +43,21 @@ def main():
     signal.signal(signal.SIGINT, stop)
     signal.signal(signal.SIGTERM, stop)
 
+    # Ensure ~/.local/bin (uv, uvx) is on PATH for subprocesses
+    local_bin = os.path.expanduser("~/.local/bin")
+    env = os.environ.copy()
+    env["PATH"] = f"{local_bin}:{env.get('PATH', '')}"
+
+    # Suppress ChromaDB telemetry (avoids posthog client version mismatch)
+    env.setdefault("ANONYMIZED_TELEMETRY", "False")
+    env.setdefault("CHROMA_TELEMETRY_IMPL", "none")
+
     root = os.path.dirname(os.path.abspath(__file__))
+
+    # Kill stale processes from a previous run
+    for port in (8000, 8001):
+        os.system(f"fuser -k {port}/tcp 2>/dev/null || true")
+    time.sleep(0.5)
 
     print("[+] Starting FastAPI        on http://localhost:8000")
     print("[+] Starting MakeItSmooth    on http://localhost:8001")
@@ -55,7 +69,7 @@ def main():
 
     api = subprocess.Popen(
         ["uv", "run", "--active", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"],
-        stdout=sys.stdout, stderr=sys.stderr,
+        stdout=sys.stdout, stderr=sys.stderr, env=env,
     )
     PROCS.append(api)
 
@@ -65,7 +79,7 @@ def main():
     smooth = subprocess.Popen(
         ["uv", "run", "uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8001"],
         cwd=os.path.join(root, "MakeItSmooth"),
-        stdout=sys.stdout, stderr=sys.stderr,
+        stdout=sys.stdout, stderr=sys.stderr, env=env,
     )
     PROCS.append(smooth)
 
