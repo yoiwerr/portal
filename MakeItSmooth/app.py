@@ -2,7 +2,8 @@
 MakeItSmooth - 个人工作流增强 Agent
 
 框架: LangGraph + LangChain Agent + FastAPI
-推理: DashScope (通义千问)
+向量库: PostgreSQL + PGVector (与 ChatLab 共用)
+推理: 多 Provider (DashScope / DeepSeek / OpenAI / Local)
 
 启动方式:
     python app.py
@@ -12,11 +13,8 @@ MakeItSmooth - 个人工作流增强 Agent
 
 import os
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
-
-# ── 抑制 ChromaDB telemetry (chromadb 0.5.x 在 WSL 环境中有 posthog capture 签名不兼容) ──
-os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
-os.environ.setdefault("CHROMA_TELEMETRY_IMPL", "none")
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -27,19 +25,104 @@ from fastapi.staticfiles import StaticFiles
 
 from config import config
 from services.session_store import SessionStore
+from services.vector_store import PGVectorStore, build_connection_string
 from services.rag_service import RAGService
 from core.llm_client import create_model
 from core.agent import Agent
-from routers import chat, sessions, knowledge
+from routers import chat, sessions, knowledge, feedback
+
+# ── 全局服务引用（由 lifespan 初始化） ──
+session_store: SessionStore = None
+rag_service: RAGService = None
+agent: Agent = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan — 启动时初始化所有服务，关闭时清理。"""
+    global session_store, rag_service, agent
+
+    print("=" * 60)
+    print("  MakeItSmooth - 个人工作流增强 Agent")
+    print("  LangGraph + LangChain Agent + FastAPI")
+    print(f"  Provider: {config.llm_provider} | Model: {config.llm_model}")
+    print(f"  Vector DB: PostgreSQL + PGVector")
+    print(f"  Embedding: text-embedding-v3")
+    print("=" * 60)
+
+    print(f"\n[Data]   {config.data_dir}")
+    print(f"[SQLite] {config.db_path}")
+    print(f"[RAG]    {config.knowledge_base_dir}")
+    print(f"[PG]     {config.pg_host}:{config.pg_port}/{config.pg_database}")
+
+    # ── 1. SQLite 会话存储 ──
+    print("\n[Init] SQLite 会话存储...")
+    session_store = SessionStore(config.db_path)
+
+    # ── 2. PGVector 向量库 ──
+    print("[Init] PGVector 向量库...")
+    conn_str = build_connection_string(config)
+    vector_store = PGVectorStore(conn_str)
+    await vector_store.ensure_tables()
+    print(f"  [OK] PGVector 表就绪: {list(PGVectorStore.COLLECTIONS.keys())}")
+
+    # ── 3. RAG 服务 ──
+    print("[Init] RAG 服务...")
+    rag_service = RAGService(
+        vector_store=vector_store,
+        knowledge_base_dir=config.knowledge_base_dir,
+        api_key=config.dashscope_api_key,
+        chunk_size=config.rag_chunk_size,
+        chunk_overlap=config.rag_chunk_overlap,
+    )
+    await rag_service.ensure_ready()
+
+    stats = await rag_service.get_kb_stats()
+    print(f"  [OK] 知识库: {stats['source_files']} 个源文件, {stats['chunk_count']} 个片段")
+    if stats['source_files'] > 0 and stats['chunk_count'] == 0:
+        print("  [RAG] 首次运行，正在索引知识库...")
+        count = await rag_service.ingest_knowledge_base()
+        print(f"  [RAG] 已索引 {count} 个知识片段")
+
+    # ── 4. LLM 模型 ──
+    print("[Init] LLM 模型...")
+    model = create_model(config)
+    print(f"  [OK] {config.llm_provider}: {config.llm_model}")
+
+    # ── 5. Agent ──
+    print("[Init] Agent（LangGraph ReAct + Skills）...")
+    agent = Agent(
+        model=model,
+        rag_service=rag_service,
+        session_store=session_store,
+        config=config,
+    )
+
+    # ── 注入路由 ──
+    chat.set_agent(agent)
+    sessions.set_agent(agent)
+    knowledge.set_agent(agent)
+    feedback.set_agent(agent)
+
+    print("\n  [OK] 全部服务就绪!")
+    print("=" * 60)
+
+    yield  # ← 应用运行中
+
+    # ── 关闭清理 ──
+    print("\n[Shutdown] 关闭连接...")
+    vector_store.close()
+    print("  [OK] 已关闭")
 
 
 def create_app() -> FastAPI:
-    """构建 FastAPI 应用。参照 ChatLab src/main.py 的结构。"""
+    """构建 FastAPI 应用。"""
 
     app = FastAPI(
         title="MakeItSmooth API",
         description="个人工作流增强 Agent — 引导式对话 + Skill 执行",
-        version="1.0.0",
+        version="2.0.0",
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -50,46 +133,11 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # ── 初始化服务 ──
-    print("=" * 60)
-    print("  MakeItSmooth - 个人工作流增强 Agent")
-    print("  LangGraph + LangChain Agent + FastAPI")
-    print(f"  LLM: {config.llm_model} @ DashScope")
-    print(f"  Embedding: text-embedding-v3")
-    print("=" * 60)
-
-    print(f"\n[Data] {config.data_dir}")
-    print(f"[DB]   {config.db_path}")
-    print(f"[RAG]  {config.knowledge_base_dir}")
-
-    print("\n[Init] 初始化服务...")
-    session_store = SessionStore(config.db_path)
-    rag_service = RAGService(config.chroma_path, config.knowledge_base_dir, api_key=config.dashscope_api_key)
-    model = create_model(config)
-
-    stats = rag_service.get_kb_stats()
-    print(f"[RAG] 知识库状态: {stats['source_files']} 个源文件, {stats['chunk_count']} 个片段")
-    if stats['source_files'] > 0 and stats['chunk_count'] == 0:
-        print("[RAG] 首次运行，正在索引知识库...")
-        count = rag_service.ingest_knowledge_base()
-        print(f"[RAG] 已索引 {count} 个知识片段")
-
-    print("[Init] 初始化 Agent（LangGraph 图 + Skills）...")
-    agent = Agent(
-        model=model,
-        rag_service=rag_service,
-        session_store=session_store,
-        config=config,
-    )
-
-    # ── 注册路由 ──
-    chat.set_agent(agent)
-    sessions.set_agent(agent)
-    knowledge.set_agent(agent)
-
+    # ── 路由 ──
     app.include_router(chat.router)
     app.include_router(sessions.router)
     app.include_router(knowledge.router)
+    app.include_router(feedback.router)
 
     # ── 静态文件 + 首页 ──
     static_dir = config.project_root / "static"
@@ -100,8 +148,8 @@ def create_app() -> FastAPI:
             return f.read()
 
     if static_dir.exists():
-        # StaticFiles with cache headers (7d) for production
         from starlette.staticfiles import StaticFiles as _SF
+
         class _CachedStaticFiles(_SF):
             async def __call__(self, scope, receive, send):
                 async def _send(msg):
@@ -111,17 +159,27 @@ def create_app() -> FastAPI:
                         msg["headers"] = [(k, v) for k, v in headers.items()]
                     await send(msg)
                 await super().__call__(scope, receive, _send)
+
         app.mount("/css", _CachedStaticFiles(directory=str(static_dir / "css")), name="css")
         app.mount("/js", _CachedStaticFiles(directory=str(static_dir / "js")), name="js")
 
     # ── 健康检查 ──
     @app.get("/api/health")
     async def health():
+        kb_stats = {}
+        if rag_service:
+            try:
+                kb_stats = await rag_service.get_kb_stats()
+            except Exception:
+                kb_stats = {"error": "PG 连接失败"}
+
         return {
             "status": "ok",
+            "provider": config.llm_provider,
             "llm": config.llm_model,
-            "provider": "dashscope",
-            "kb_stats": rag_service.get_kb_stats(),
+            "vector_db": "pgvector",
+            "pg_host": f"{config.pg_host}:{config.pg_port}/{config.pg_database}",
+            "kb_stats": kb_stats,
         }
 
     return app

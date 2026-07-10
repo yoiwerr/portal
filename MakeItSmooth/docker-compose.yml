@@ -4,9 +4,28 @@ services:
     container_name: smooth-api
     command: uvicorn app:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 120
     environment:
+      # LLM (多 Provider)
+      LLM_PROVIDER: ${LLM_PROVIDER:-auto}
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # PostgreSQL (与 ChatLab 共用 pgvector/pgvector:pg16)
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: makeitsmooth
+      DB_USER: postgres
+      PGSQLPASSWORD: ${PGSQLPASSWORD}
+      # Search
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      SEARCH_API_KEY: ${TAVILY_API_KEY:-}
+      # Agent
+      SANDBOX_ENABLED: ${SANDBOX_ENABLED:-false}
+      MEMORY_ENABLED: ${MEMORY_ENABLED:-true}
     volumes:
       - smoothdata:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     restart: unless-stopped
     mem_limit: 2g
     mem_reservation: 512m
@@ -15,7 +34,14 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
+    networks:
+      - portal-net
 
 volumes:
   smoothdata:
+
+networks:
+  portal-net:
+    external: true
+    name: chathistoryanalyst_default

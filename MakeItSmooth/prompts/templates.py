@@ -1,13 +1,17 @@
 """
-所有 Prompt 模板（中文）。
-包含：追问模板、执行模板、分类模板、提取模板。
+所有 Prompt 模板和维度定义。
+
+V2: 移除硬编码正则 (DIALOGUE_DIMENSION_DEFS)。
+    维度提取改为 LLM structured output，此文件仅保留维度定义和工具函数。
+    追问模板作为 Planner 的参考上下文使用。
 """
 
-import json
-from typing import List
+from typing import List, Dict, Any
+
 
 # ============================================================
 # 信息维度定义（每个模块有哪些维度需要补全）
+# 用作 LLM Planner 的上下文，指导它从用户消息中提取哪些维度
 # ============================================================
 
 PROMPT_REFINER_DIMENSIONS = {
@@ -116,7 +120,7 @@ INFO_RETENTION_DIMENSIONS = {
 }
 
 # 模块 → 维度映射
-MODULE_DIMENSIONS = {
+MODULE_DIMENSIONS: Dict[str, Dict] = {
     "prompt_refiner": PROMPT_REFINER_DIMENSIONS,
     "work_arranger": WORK_ARRANGER_DIMENSIONS,
     "info_retention": INFO_RETENTION_DIMENSIONS,
@@ -124,10 +128,10 @@ MODULE_DIMENSIONS = {
 
 
 # ============================================================
-# 追问模板（每个维度预置追问话术）
+# 追问模板（参考用 — Planner 可以从中选问题也可以自己编）
 # ============================================================
 
-CLARIFICATION_TEMPLATES = {
+CLARIFICATION_TEMPLATES: Dict[str, List[str]] = {
     # 提示词工程相关
     "purpose": [
         "你做这个的主要目的是什么？想让 AI 帮你完成什么任务？",
@@ -195,179 +199,20 @@ CLARIFICATION_TEMPLATES = {
     ],
 }
 
-
 # ============================================================
-# 模块执行 Prompt 模板
-# ============================================================
-
-PROMPT_REFINER_EXECUTION_TEMPLATE = """你是一个专业的 AI 提示词优化师。请根据以下信息，生成 2-3 个优化后的提示词版本。
-
-## 用户背景
-{background}
-
-## 原始提示词/需求
-{original_message}
-
-## 已确认的需求信息
-{expressed_dimensions}
-
-## 知识库参考
-{rag_context}
-
-## 输出要求
-请严格按照以下格式输出（每个版本用 ## 分隔）：
-
-## 版本 A - [版本名称]
-**策略**: [使用的提示词策略，如 Chain-of-Thought / Few-Shot / 角色扮演]
-**推荐模型**: [适用模型名称]
-**风格**: [简洁实用 / 详细教程 / 创意发散 / 结构化报告]
-
-```
-[完整的优化提示词文本]
-```
-
-**为什么选这个版本**: [一句话理由]
-
----
-
-## 版本 B - [版本名称]
-(同上格式)
-
----
-
-## 版本 C - [版本名称] (可选)
-(同上格式)
-
-## 💡 使用建议
-- 如果目标是 XX，推荐版本 A
-- 如果想要 YY 效果，推荐版本 B
-- ...
-"""
-
-WORK_ARRANGER_EXECUTION_TEMPLATE = """你是一个工作流程规划专家。请根据以下信息，生成完整的项目工作计划。
-
-## 项目背景
-{background}
-
-## 工作需求
-{original_message}
-
-## 已确认的需求信息
-{expressed_dimensions}
-
-## 知识库参考
-{rag_context}
-
-## 输出要求
-请按以下结构输出完整的 Markdown 工作计划：
-
-### 📋 项目概述
-（一句话概述项目目标和范围）
-
-### ⚠️ 不确定性声明
-（信息不够确定的维度用 *斜体* 标注，并给出 "如果...则..." 的建议）
-
-### 📊 阶段划分与任务
-
-| 阶段 | 任务 | 预估时间 | 优先级 | 依赖 |
-|------|------|---------|--------|------|
-| Phase 1: ... | ... | ... | 🔴高 | - |
-| Phase 2: ... | ... | ... | 🟡中 | Phase 1 |
-
-### 🛠 工具与资源推荐
-- **工具名称**: 推荐理由和链接（如有）
-- ...
-
-### ⚡ 风险与注意事项
-1. ...
-2. ...
-
-### 🎯 MVP 范围
-（哪些是第一个版本必须包含的）
-
-### 📅 建议时间线
-```
-Week 1: ...
-Week 2: ...
-...
-```
-
-### 🚀 下一步行动
-1. **立刻可以做**: ...
-2. **本周内**: ...
-3. **下周**: ...
-
----
-
-> 💡 搜索功能将在 Phase 2 集成，届时可获取最新工具和资源信息。
-"""
-
-INFO_RETENTION_EXECUTION_TEMPLATE = """你是一个信息整理和知识管理助手。请将以下信息整理为结构化文档。
-
-## 用户背景
-{background}
-
-## 留存需求
-{original_message}
-
-## 已确认的需求信息
-{expressed_dimensions}
-
-## 知识库参考
-{rag_context}
-
-## 额外上下文（从加载的文件中读取）
-{extra_context}
-
-## 输出要求
-输出一份结构化的 Markdown 文档，包含：
-
-### 📌 核心信息
-（最重要的内容摘要）
-
-### 📝 详细内容
-（完整信息，保持用户原意）
-
-### � 关键决策点
-（如果有的话）
-
-### 🔄 下次使用时关注
-- ...
-- ...
-
-### 📅 时效性标注
-- 适用时间范围: ...
-- 建议复查周期: ...
-"""
-
-
-# ============================================================
-# 维度提取 Prompt
+# 维度提示（用于追问时给用户举例）
 # ============================================================
 
-EXTRACT_DIMENSIONS_PROMPT = """从以下用户消息中提取已明确表达的信息维度。
-
-维度定义:
-{dimensions_desc}
-
-用户消息:
-{message}
-
-请以 JSON 格式输出。对每个维度：
-- 如果用户明确提到了，输出提取的值
-- 如果用户暗示了但没有明确说，输出值并标记 confidence 为 0.3-0.5
-- 如果完全没有提到，输出 null
-
-输出格式（只输出 JSON，不要其他任何内容）:
-{{
-  "dimension_key": "提取的值或null",
-  "dimension_key_confidence": 0.9
-}}
-
-注意：
-- confidence 表示你对这个维度提取的确定程度（0=完全不确定, 1=非常确定）
-- 只在用户明确表达的情况下给高 confidence
-"""
+DIMENSION_HINTS: Dict[str, str] = {
+    "purpose": "比如：生成产品文案、写代码注释、翻译文档...",
+    "target_model": "比如：Qwen3-8B、DeepSeek-R1、Claude...",
+    "output_style": "简洁实用 / 详细教程 / 结构化 / 创意发散",
+    "target_audience": "比如：技术团队、普通用户、管理层...",
+    "project_purpose": "比如：学习新技术、搭建个人网站、团队效率工具...",
+    "scope": "个人项目 / 团队协作 / 企业级",
+    "time_constraint": "比如：1周内 / 1个月内 / 长期项目",
+    "deliverables": "比如：代码仓库、上线网站、设计文档...",
+}
 
 
 # ============================================================
@@ -389,8 +234,49 @@ def format_expressed_dimensions(dimensions: dict) -> str:
     for key, value in dimensions.items():
         if key.endswith("_confidence"):
             continue
-        if value and value != "null":
+        if value and str(value) != "null":
             conf = dimensions.get(f"{key}_confidence", 0.5)
-            conf_icon = "✅" if conf > 0.7 else "🤔"
+            if isinstance(conf, (int, float)):
+                conf_icon = "✅" if conf > 0.7 else "🤔" if conf > 0.3 else "❓"
+            else:
+                conf_icon = "🤔"
             lines.append(f"- {conf_icon} **{key}**: {value}")
     return "\n".join(lines) if lines else "（尚未提取到任何维度信息）"
+
+
+def get_dimension_hint(dim_key: str) -> str:
+    """获取某个维度的提示文本。"""
+    return DIMENSION_HINTS.get(dim_key, "")
+
+
+def get_clarification_templates(dim_key: str) -> List[str]:
+    """获取某个维度的追问模板。"""
+    return CLARIFICATION_TEMPLATES.get(dim_key, [f"关于「{dim_key}」，能再多说一些吗？"])
+
+
+def calculate_completeness(expressed: dict, dimensions: dict) -> tuple:
+    """
+    计算信息完整度（保留原有逻辑，用于快速检查）。
+
+    返回: (completeness, gaps_list)
+    """
+    total_weight = sum(d["weight"] for d in dimensions.values())
+    covered_weight = 0.0
+    gaps = []
+
+    for key, dim in dimensions.items():
+        if key in expressed and expressed[key]:
+            confidence = expressed.get(f"{key}_confidence", 0.5)
+            if isinstance(confidence, (int, float)):
+                covered_weight += dim["weight"] * confidence
+        else:
+            gaps.append({
+                "key": key,
+                "label": dim["label"],
+                "weight": dim["weight"],
+                "is_required": dim.get("required", False),
+            })
+
+    completeness = covered_weight / total_weight if total_weight > 0 else 0
+    gaps.sort(key=lambda g: (not g["is_required"], -g["weight"]))
+    return completeness, gaps

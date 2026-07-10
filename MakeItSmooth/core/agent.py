@@ -1,44 +1,44 @@
 """
-Agent 封装层 —— FastAPI 的统一入口。
+Agent 封装层 — FastAPI 的统一入口。V2。
 
-职责：
+职责:
 1. 封装 LangGraph 图的调用细节
 2. 管理会话持久化（SQLite）
-3. 协调 Skills（LangChain Agent + Tools 模式）
-4. 提供导出、历史加载等辅助接口
+3. 协调 Skills + 6 核心 Tools
+4. astream_events() 支持真正的 token 级流式输出
+5. 记忆系统: 会话开始检索历史 + 画像 / 会话结束自动摘要
 """
 
+import logging
 from pathlib import Path
+from typing import AsyncIterator
 
 from core.graph import create_graph
 from services.rag_service import RAGService
 from services.session_store import SessionStore
 from tools.search import set_tool_services
 
+logger = logging.getLogger(__name__)
+
 
 class Agent:
-    """
-    MakeItSmooth Agent。
 
-    每次用户发送消息时调用 process_message()。
-    内部：
-      1. LangGraph 图做维度提取 + 完整度评估 → 追问 or 执行
-      2. 执行时调用 skills/ 下的 LangChain Agent
-    """
-
-    def __init__(
-        self,
-        model,
-        rag_service: RAGService = None,
-        session_store: SessionStore = None,
-        config=None,
-    ):
-        self.model = model              # ChatOpenAI（LangChain 兼容）
+    def __init__(self, model, rag_service=None, session_store=None, config=None):
+        self.model = model
         self.rag = rag_service
         self.sessions = session_store
         self.config = config
 
-        # 注册三个 Skill（LangChain Agent 模式）
+        # ── 注入模型到 delegate tool ──
+        from tools.delegate import set_delegate_model
+        set_delegate_model(model, config)
+
+        # ── 记忆系统 ──
+        self.session_memory = None
+        self.user_profile = None
+        self._init_memory()
+
+        # ── Skills ──
         from skills.prompt_refiner import PromptRefiner
         from skills.work_arranger import WorkArranger
         from skills.info_retention import InfoRetention
@@ -49,122 +49,347 @@ class Agent:
             "info_retention": InfoRetention(),
         }
 
-        # 构建 LangGraph 图
+        # ── LangGraph 图 ──
         self.graph = create_graph(
-            rag_service=rag_service,
-            skills=self.skills,
-            model=model,
+            rag_service=rag_service, skills=self.skills, model=model,
         )
 
+    def _init_memory(self):
+        """初始化 L2/L3 记忆系统（依赖 PGVector + Embedding，可选）。"""
+        if not self.rag or not self.config:
+            return
+        memory_enabled = getattr(self.config, "memory_enabled", True)
+        if not memory_enabled:
+            return
+
+        try:
+            from memory.session_memory import SessionMemory
+            from memory.user_profile import UserProfile
+
+            embed_model = self.rag.embedding_model
+            vector_store = self.rag.store
+
+            self.session_memory = SessionMemory(
+                vector_store=vector_store,
+                embedding_model=embed_model,
+                llm_model=self.model,
+            )
+            self.user_profile = UserProfile(
+                vector_store=vector_store,
+                embedding_model=embed_model,
+                llm_model=self.model,
+            )
+            logger.info("[Memory] L2/L3 记忆系统已初始化")
+        except Exception as e:
+            logger.warning(f"[Memory] 初始化失败 (可忽略): {e}")
+
     # ============================================================
-    # 主入口
+    # 兼容旧版
     # ============================================================
 
     async def process_message(
-        self,
-        message: str,
-        module: str,
-        background: str = "",
-        session_id: str = None,
-        clarify_round: int = 0,
-        dimensions: dict = None,
-        extra_context: str = "",
+        self, message, module="auto", background="", session_id=None,
+        clarify_round=0, dimensions=None, extra_context="",
     ) -> dict:
-        """处理一条用户消息。返回 clarify 或 execute 结果。"""
-
+        if dimensions is None:
+            dimensions = {}
         if not session_id:
             session_id = self.sessions.create_session(
                 module=module, background=background,
             )
 
-        set_tool_services(
-            rag_service=self.rag,
-            session_store=self.sessions,
-            session_id=session_id,
-        )
+        set_tool_services(rag_service=self.rag, session_store=self.sessions,
+                          session_id=session_id, config=self.config)
 
-        self.sessions.save_message(
-            session_id=session_id, role="user",
-            content=message, msg_type="input",
-        )
+        self.sessions.save_message(session_id=session_id, role="user",
+                                   content=message, msg_type="input")
 
-        initial_state = {
-            "messages": [{"role": "user", "content": message}],
-            "module": module,
-            "background": background or "",
-            "extra_context": extra_context or "",
-            "expressed_dimensions": dimensions or {},
-            "clarify_round": clarify_round,
-            "rag_context": "",
-            "completeness": 0.0,
-            "output": "",
-        }
+        # ── 记忆注入 ──
+        memory_context = await self._retrieve_memory(message)
+
+        initial_state = self._build_initial_state(
+            message=message, module=module, background=background,
+            session_id=session_id, extra_context=extra_context,
+            dimensions=dimensions, clarify_round=clarify_round,
+            memory_context=memory_context,
+        )
 
         result = await self.graph.ainvoke(initial_state)
+
         output = result.get("output", "")
         new_dimensions = result.get("expressed_dimensions", {})
-        new_completeness = result.get("completeness", 0)
         new_clarify_round = result.get("clarify_round", clarify_round)
+        plan = result.get("plan", {})
+        intent = result.get("intent", {})
+        completeness = plan.get("completeness", 0)
 
         if new_clarify_round > clarify_round:
             action_type = "clarify"
-            is_complete = False
             self.sessions.save_message(
-                session_id=session_id, role="assistant",
-                content=output, msg_type="clarify",
-                meta={"progress": new_completeness, "dimensions": new_dimensions},
+                session_id=session_id, role="assistant", content=output,
+                msg_type="clarify",
+                meta={"progress": completeness, "dimensions": new_dimensions, "intent": intent},
             )
             self.sessions.update_session(
-                session_id=session_id,
-                clarify_rounds=new_clarify_round,
-                completeness=new_completeness,
+                session_id=session_id, clarify_rounds=new_clarify_round,
+                completeness=completeness,
             )
         else:
             action_type = "execute"
-            is_complete = True
             self.sessions.save_message(
-                session_id=session_id, role="assistant",
-                content=output, msg_type="result",
-                meta={"progress": new_completeness, "dimensions": new_dimensions},
+                session_id=session_id, role="assistant", content=output,
+                msg_type="result",
+                meta={"progress": completeness, "dimensions": new_dimensions, "intent": intent},
             )
             self.sessions.update_session(
-                session_id=session_id,
-                completeness=new_completeness,
-                status="completed",
+                session_id=session_id, completeness=completeness, status="completed",
             )
+            # ── 会话结束时自动摘要 ──
+            await self._summarize_on_complete(session_id, output, intent)
 
         return {
-            "type": action_type,
-            "session_id": session_id,
-            "message": output,
+            "type": action_type, "session_id": session_id, "message": output,
             "state_update": {
-                "clarify_round": new_clarify_round,
-                "dimensions": new_dimensions,
-                "is_complete": is_complete,
+                "clarify_round": new_clarify_round, "dimensions": new_dimensions,
+                "is_complete": action_type == "execute",
             },
         }
 
     # ============================================================
-    # 辅助接口
+    # Token 级流式
     # ============================================================
 
-    def list_sessions(self, module: str = None) -> list[dict]:
+    async def process_message_stream(
+        self, message, module="auto", background="", session_id=None,
+        clarify_round=0, dimensions=None, extra_context="",
+    ) -> AsyncIterator[dict]:
+        if dimensions is None:
+            dimensions = {}
+        if not session_id:
+            session_id = self.sessions.create_session(
+                module=module, background=background,
+            )
+
+        set_tool_services(rag_service=self.rag, session_store=self.sessions,
+                          session_id=session_id, config=self.config)
+
+        self.sessions.save_message(session_id=session_id, role="user",
+                                   content=message, msg_type="input")
+
+        yield {"event": "session", "data": {
+            "session_id": session_id, "module": module,
+            "model": getattr(self.config, "llm_model", "unknown"),
+        }}
+
+        # ── 记忆注入 ──
+        memory_context = await self._retrieve_memory(message)
+
+        initial_state = self._build_initial_state(
+            message=message, module=module, background=background,
+            session_id=session_id, extra_context=extra_context,
+            dimensions=dimensions, clarify_round=clarify_round,
+            memory_context=memory_context,
+        )
+
+        full_output = ""
+        token_count = 0
+        final_state = None
+
+        try:
+            async for event in self.graph.astream_events(initial_state, version="v2"):
+                kind = event.get("event", "")
+
+                if kind == "on_chat_model_stream":
+                    chunk = event.get("data", {}).get("chunk", None)
+                    if chunk and hasattr(chunk, "content") and chunk.content:
+                        token_text = chunk.content
+                        full_output += token_text
+                        token_count += 1
+                        yield {"event": "token", "data": {
+                            "content": token_text, "token_index": token_count,
+                        }}
+
+                elif kind == "on_tool_start":
+                    yield {"event": "tool_start", "data": {
+                        "tool_name": event.get("name", "unknown"),
+                        "tool_input": _safe_serialize(event.get("data", {}).get("input", {})),
+                    }}
+
+                elif kind == "on_tool_end":
+                    yield {"event": "tool_end", "data": {
+                        "tool_name": event.get("name", "unknown"),
+                        "tool_output": str(event.get("data", {}).get("output", ""))[:500],
+                    }}
+
+        except Exception as e:
+            logger.error(f"[Agent] Stream 失败: {e}", exc_info=True)
+            yield {"event": "error", "data": {"detail": str(e)}}
+            return
+
+        output = full_output
+        new_clarify_round = clarify_round
+        new_dims = dimensions or {}
+        intent = {}
+        completeness = 0
+
+        if output:
+            try:
+                raw_state = self.graph.get_state(initial_state)
+                if raw_state:
+                    final_values = raw_state.values if hasattr(raw_state, "values") else raw_state
+                    output = final_values.get("output", full_output)
+                    new_clarify_round = final_values.get("clarify_round", clarify_round)
+                    new_dims = final_values.get("expressed_dimensions", {})
+                    intent = final_values.get("intent", {})
+                    plan = final_values.get("plan", {})
+                    completeness = plan.get("completeness", 0)
+            except Exception:
+                pass
+
+        if output:
+            if new_clarify_round > clarify_round:
+                self.sessions.save_message(
+                    session_id=session_id, role="assistant", content=output,
+                    msg_type="clarify", meta={"progress": completeness, "intent": intent},
+                )
+                self.sessions.update_session(
+                    session_id=session_id, clarify_rounds=new_clarify_round,
+                    completeness=completeness,
+                )
+                yield {"event": "clarify", "data": {
+                    "type": "clarify", "progress": completeness, "module": module,
+                    "message": output,
+                }}
+            else:
+                self.sessions.save_message(
+                    session_id=session_id, role="assistant", content=output,
+                    msg_type="result", meta={"progress": completeness, "intent": intent},
+                )
+                self.sessions.update_session(
+                    session_id=session_id, completeness=completeness, status="completed",
+                )
+                yield {"event": "execute", "data": {
+                    "type": "execute", "skill": module, "module": module,
+                    "message": output, "tool_calls_made": 0,
+                }}
+                # ── 会话结束时自动摘要 ──
+                await self._summarize_on_complete(session_id, output, intent)
+
+        yield {"event": "done", "data": {
+            "session_id": session_id, "message_id": 0, "tokens_used": token_count,
+            "intent": intent,
+        }}
+
+    # ============================================================
+    # 记忆: 检索 + 摘要
+    # ============================================================
+
+    async def _retrieve_memory(self, message: str) -> str:
+        """会话开始时检索相关历史 + 用户画像。"""
+        parts = []
+
+        if self.session_memory:
+            try:
+                hist = await self.session_memory.retrieve(message, top_k=3)
+                if hist:
+                    parts.append(hist)
+            except Exception as e:
+                logger.warning(f"[Memory] 检索失败: {e}")
+
+        if self.user_profile:
+            try:
+                profile = await self.user_profile.format_for_context()
+                if profile:
+                    parts.append(profile)
+            except Exception as e:
+                logger.warning(f"[Profile] 获取失败: {e}")
+
+        return "\n".join(parts) if parts else ""
+
+    async def _summarize_on_complete(self, session_id: str, output: str, intent: dict):
+        """会话任务完成时异步触发摘要。不阻塞主流程。"""
+        if not self.session_memory or not self.user_profile:
+            return
+
+        try:
+            messages = self.sessions.get_conversation(session_id)
+            if len(messages) < 3:
+                return  # 太短不摘要
+
+            module = intent.get("module", "")
+
+            # L2: 会话摘要
+            summary = await self.session_memory.summarize_and_store(
+                session_id=session_id, messages=messages, module=module,
+            )
+
+            # L3: 用户画像更新
+            if summary:
+                import json
+                try:
+                    summary_data = json.loads(summary)
+                except json.JSONDecodeError:
+                    summary_data = {"summary": output[:500]}
+                await self.user_profile.update_from_summary(summary_data)
+
+        except Exception as e:
+            logger.warning(f"[Memory] 摘要/画像更新失败 (非关键): {e}")
+
+    # ============================================================
+    # 工具方法
+    # ============================================================
+
+    def _build_initial_state(self, message, module, background, session_id,
+                             extra_context, dimensions, clarify_round, memory_context="") -> dict:
+        # 把记忆上下文拼到 extra_context 前面
+        full_extra = extra_context or ""
+        if memory_context:
+            full_extra = memory_context + "\n\n" + full_extra
+
+        return {
+            "messages": [{"role": "user", "content": message}],
+            "module": module,
+            "background": background or "",
+            "extra_context": full_extra.strip(),
+            "expressed_dimensions": dimensions,
+            "clarify_round": clarify_round,
+            "rag_context": "",
+            "enriched_query": "",
+            "plan": {},
+            "tool_results": [],
+            "reflection_count": 0,
+            "output": "",
+            "intent": {},
+        }
+
+    def list_sessions(self, module=None):
         return self.sessions.list_sessions(module=module)
 
-    def export_session(self, session_id: str) -> str:
+    def export_session(self, session_id):
         from services.md_export import export_session_to_md
         return str(export_session_to_md(
-            session_id=session_id,
-            session_store=self.sessions,
+            session_id=session_id, session_store=self.sessions,
             output_dir=self.export_dir,
         ))
 
-    def load_md_context(self, file_paths: list[str]) -> str:
+    def load_md_context(self, file_paths):
         from services.md_export import load_multiple_md_files
         return load_multiple_md_files([Path(p) for p in file_paths])
 
     @property
     def export_dir(self):
-        if self.config:
-            return self.config.export_dir
-        return Path("data/exports")
+        return self.config.export_dir if self.config else Path("data/exports")
+
+
+def _safe_serialize(obj):
+    if isinstance(obj, dict):
+        return {k: _safe_serialize(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_safe_serialize(v) for v in obj]
+    elif hasattr(obj, "__dict__"):
+        return str(obj)
+    try:
+        import json; json.dumps(obj)
+        return obj
+    except (TypeError, ValueError):
+        return str(obj)

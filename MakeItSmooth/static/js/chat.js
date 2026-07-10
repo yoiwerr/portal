@@ -1,6 +1,6 @@
 /**
- * MakeItSmooth Chat Client
- * SSE streaming · Module selection · Markdown rendering
+ * MakeItSmooth Chat Client V2
+ * SSE streaming (V2: token-level) · Module selection · Markdown rendering · Feedback
  */
 (function () {
   'use strict';
@@ -10,6 +10,9 @@
   let clarifyRound = 0;
   let dimensions = {};
   let isProcessing = false;
+
+  // API version: 'v2' for token-level streaming, 'v1' for legacy
+  const API_VERSION = '2';
 
   const MODULE_LABELS = {
     prompt_refiner: '提示词工程',
@@ -63,7 +66,8 @@
     const bgText = document.getElementById('bgInput').value.trim();
 
     try {
-      const resp = await fetch('api/chat/stream', {
+      const apiUrl = API_VERSION === '2' ? 'api/chat/stream?v=2' : 'api/chat/stream';
+      const resp = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -89,8 +93,12 @@
       const reader = resp.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
-      let fullContent = '';
       let lastEvent = '';
+
+      // For V2: create a streaming message bubble
+      let streamBubble = null;
+      let streamContent = '';
+      let toolCalls = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -108,10 +116,20 @@
           if (line.startsWith('data:') && lastEvent) {
             try {
               const data = JSON.parse(line.slice(5).trim());
-              handleSSEEvent(lastEvent, data);
-              if (lastEvent === 'clarify' || lastEvent === 'execute') {
-                fullContent = data.message || '';
-              }
+              handleSSEEventV2(lastEvent, data, {
+                getStreamBubble: () => streamBubble,
+                setStreamBubble: (b) => { streamBubble = b; },
+                appendToStream: (text) => {
+                  streamContent += text;
+                  if (!streamBubble) {
+                    removeTyping(typingEl);
+                    streamBubble = appendStreamingBubble();
+                  }
+                  updateStreamingBubble(streamBubble, streamContent, toolCalls);
+                },
+                getStreamContent: () => streamContent,
+                setToolCalls: (tc) => { toolCalls = tc; },
+              });
             } catch (e) {
               // Skip partial JSON chunks
             }
@@ -122,9 +140,13 @@
 
       removeTyping(typingEl);
 
-      if (fullContent) {
-        appendMessage('assistant', fullContent);
+      // Finalize streaming bubble
+      if (streamBubble && streamContent) {
+        finalizeStreamingBubble(streamBubble, streamContent);
         setStatus('●', '就绪', 'var(--green)');
+      } else if (!streamContent) {
+        // No content received — might be an error
+        setStatus('●', '无响应', 'var(--muted)');
       }
 
     } catch (e) {
@@ -139,28 +161,57 @@
   };
 
   /* ═══════════════════════════════════════════════════════
-     SSE Event Handler
+     SSE Event Handler V2 (Token-level streaming)
      ═══════════════════════════════════════════════════════ */
-  function handleSSEEvent(evt, data) {
+  function handleSSEEventV2(evt, data, ctx) {
     switch (evt) {
       case 'session':
         sessionId = data.session_id;
+        setStatusRight('Provider: ' + (data.model || 'AI'));
         break;
-      case 'thinking':
-        setStatusRight(data.content || '分析中...');
+
+      case 'token':
+        // Real-time token streaming
+        ctx.appendToStream(data.content);
         break;
+
+      case 'tool_start':
+        ctx.setToolCalls([...ctx.getStreamBubble() ? [] : [], {
+          name: data.tool_name,
+          status: 'running',
+          input: data.tool_input,
+        }]);
+        setStatusRight('🔧 ' + data.tool_name + '...');
+        break;
+
+      case 'tool_end':
+        setStatusRight('');
+        // Update tool call status
+        const tc = (ctx.getStreamBubble() ? [] : [])
+        break;
+
       case 'clarify':
         clarifyRound += 1;
         setStatus('◉', '追问中 — 完整度 ' + Math.round((data.progress || 0) * 100) + '%', 'var(--amber)');
+        // For clarify, the message is sent separately, not streamed
+        if (!ctx.getStreamContent()) {
+          const typingEl = document.querySelector('.typing');
+          if (typingEl) typingEl.remove();
+          appendMessage('assistant', data.message || '');
+        }
         break;
+
       case 'execute':
         clarifyRound = 0;
         dimensions = {};
         setStatusRight('执行完成');
         break;
+
       case 'done':
         setStatusRight('');
+        sessionId = data.session_id || sessionId;
         break;
+
       case 'error':
         appendMessage('assistant', '⚠ ' + (data.detail || '未知错误'));
         setStatus('●', '出错了', 'var(--red)');
@@ -187,6 +238,27 @@
   };
 
   /* ═══════════════════════════════════════════════════════
+     Feedback
+     ═══════════════════════════════════════════════════════ */
+  window.sendFeedback = function (msgEl, rating) {
+    const btns = msgEl.querySelectorAll('.feedback-btn');
+    btns.forEach(b => b.classList.remove('active'));
+    const activeBtn = msgEl.querySelector('.feedback-btn[data-rating="' + rating + '"]');
+    if (activeBtn) activeBtn.classList.add('active');
+
+    // Send feedback to server
+    fetch('api/feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId || '',
+        rating: rating,
+        skill: currentModule || '',
+      }),
+    }).catch(() => {});
+  };
+
+  /* ═══════════════════════════════════════════════════════
      Keyboard
      ═══════════════════════════════════════════════════════ */
   window.handleKey = function (e) {
@@ -205,12 +277,72 @@
     div.className = 'msg msg-' + role;
 
     const labelText = role === 'user' ? '你' : 'MakeItSmooth';
+    const displayContent = role === 'user' ? escapeHtml(content) : renderMarkdown(content);
+
     div.innerHTML =
       '<div class="msg-label">' + labelText + '</div>' +
-      '<div class="msg-content">' + (role === 'user' ? escapeHtml(content) : renderMarkdown(content)) + '</div>';
+      '<div class="msg-content">' + displayContent + '</div>';
+
+    // Add feedback buttons for assistant messages
+    if (role === 'assistant') {
+      div.innerHTML +=
+        '<div class="feedback-row">' +
+        '<button class="feedback-btn" data-rating="positive" onclick="sendFeedback(this.parentElement.parentElement, \'positive\')" title="有用">👍</button>' +
+        '<button class="feedback-btn" data-rating="negative" onclick="sendFeedback(this.parentElement.parentElement, \'negative\')" title="没用">👎</button>' +
+        '</div>';
+    }
+
     win.appendChild(div);
     win.scrollTop = win.scrollHeight;
     return div;
+  }
+
+  function appendStreamingBubble() {
+    const win = document.getElementById('chatWindow');
+    const div = document.createElement('div');
+    div.className = 'msg msg-assistant streaming';
+    div.innerHTML =
+      '<div class="msg-label">MakeItSmooth</div>' +
+      '<div class="msg-content"><span class="cursor-blink">▌</span></div>';
+    win.appendChild(div);
+    win.scrollTop = win.scrollHeight;
+    return div;
+  }
+
+  function updateStreamingBubble(el, content, toolCalls) {
+    const contentEl = el.querySelector('.msg-content');
+    if (!contentEl) return;
+
+    let html = renderMarkdown(content);
+    // Add tool call indicators
+    if (toolCalls.length > 0) {
+      html += '<div class="tool-indicators">';
+      toolCalls.forEach(tc => {
+        html += '<span class="tool-chip">🔧 ' + escapeHtml(tc.name) + '</span>';
+      });
+      html += '</div>';
+    }
+    html += '<span class="cursor-blink">▌</span>';
+    contentEl.innerHTML = html;
+    el.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }
+
+  function finalizeStreamingBubble(el, content) {
+    el.classList.remove('streaming');
+    const contentEl = el.querySelector('.msg-content');
+    if (contentEl) {
+      contentEl.innerHTML = renderMarkdown(content);
+      // Remove cursor
+      const cursor = contentEl.querySelector('.cursor-blink');
+      if (cursor) cursor.remove();
+    }
+    // Add feedback buttons
+    const fb = document.createElement('div');
+    fb.className = 'feedback-row';
+    fb.innerHTML =
+      '<button class="feedback-btn" data-rating="positive" onclick="sendFeedback(this.parentElement.parentElement, \'positive\')" title="有用">👍</button>' +
+      '<button class="feedback-btn" data-rating="negative" onclick="sendFeedback(this.parentElement.parentElement, \'negative\')" title="没用">👎</button>';
+    el.appendChild(fb);
   }
 
   function appendTyping() {
@@ -284,13 +416,10 @@
 
     // Ordered list
     html = html.replace(/^\d+\. (.+)$/gm, '<li>$1</li>');
-    // Clean up nested uls created by ordered list
     html = html.replace(/<\/ul>\s*<ul>/g, '\n');
 
-    // Paragraphs — wrap text between block elements
-    // Convert double newlines to paragraph breaks
+    // Paragraphs
     html = '<p>' + html.replace(/\n\n+/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
-    // Clean up paragraphs wrapping block elements
     html = html.replace(/<p><(h[123]|ul|ol|pre|blockquote|hr)/g, '<$1');
     html = html.replace(/<\/(h[123]|ul|ol|pre|blockquote)>(\s*)<\/p>/g, '</$1>');
     html = html.replace(/<p><\/p>/g, '');
