@@ -1,24 +1,28 @@
 # src/core_llm.py
 import os
 from dotenv import load_dotenv
-# 弃用有 Bug 的 OpenAI 兼容层
-# from langchain.chat_models import init_chat_model
+from langchain_openai import ChatOpenAI
 
-from langchain_community.chat_models.tongyi import ChatTongyi
-
+# 先加载当前目录的 .env，再加载上级 portal/.env（后者覆盖前者）
 load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"), override=True)
 
-api_key = os.getenv("DASHSCOPE_API_KEY")
+api_key = os.getenv("DEEPSEEK_API_KEY")
 
 if not api_key:
-    raise ValueError("未在环境变量中找到 DASHSCOPE_API_KEY，请检查 .env 文件。")
+    raise ValueError("未在环境变量中找到 DEEPSEEK_API_KEY，请检查 .env 文件。")
 
-# 使用原生 API，完美支持 Agent 工具调用，彻底避开 OpenAI 兼容层转换崩溃问题
-base_llm = ChatTongyi(
-    model="qwen3.6-flash",
-    dashscope_api_key=api_key
+base_llm = ChatOpenAI(
+    model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+    api_key=api_key,
+    base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+    temperature=0.3,
 )
-vision_llm = ChatTongyi(
-    model="qwen3-omni-flash",
-    dashscope_api_key=api_key
+
+# 保留视觉模型用于 OCR（未来可替换为 DeepSeek Vision 或其他模型）
+vision_llm = ChatOpenAI(
+    model=os.getenv("DEEPSEEK_VISION_MODEL", "deepseek-chat"),
+    api_key=api_key,
+    base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+    temperature=0.1,
 )

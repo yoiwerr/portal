@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from langchain_core.documents import Document
 from typing import List, Optional
 from src.schemas import ChatMessage
+from src.context_engineer import engineer_chat_context, build_message_index_docs
 
 from langchain_community.embeddings import DashScopeEmbeddings
 from langchain_postgres.vectorstores import PGVector
@@ -100,6 +101,7 @@ def check_dimension_mismatch_or_none() -> Optional[str]:
 
 _knowledge_store: Optional[PGVector] = None
 _chat_history_store: Optional[PGVector] = None
+_context_analysis_store: Optional[PGVector] = None
 _dim_warning: Optional[str] = None
 
 
@@ -129,6 +131,19 @@ def get_chat_history_store() -> PGVector:
     return _chat_history_store
 
 
+def get_context_analysis_store() -> PGVector:
+    """惰性初始化对话结构化分析向量存储。首次调用时连接 DB。"""
+    global _context_analysis_store
+    if _context_analysis_store is None:
+        _context_analysis_store = PGVector(
+            embeddings=embeddings,
+            collection_name="context_analysis",
+            connection=CONNECTION_STRING,
+            use_jsonb=True
+        )
+    return _context_analysis_store
+
+
 def get_dimension_warning() -> Optional[str]:
     """返回维度不匹配的警告消息，无问题时返回 None。"""
     global _dim_warning
@@ -144,6 +159,8 @@ def __getattr__(name: str):
         return get_knowledge_store()
     if name == "chat_history_store":
         return get_chat_history_store()
+    if name == "context_analysis_store":
+        return get_context_analysis_store()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -212,6 +229,22 @@ def save_chats_to_long_term_memory(recent_chats: List[ChatMessage], target_perso
         msg = f"成功将 {len(docs)} 条关于 {target_person} 的聊天记录存入长期记忆库"
         if skipped:
             msg += f"（已跳过 {skipped} 条重复）"
+
+        # ── Context Engineering: 自动生成结构化分析文档 ──
+        try:
+            ctx_store = get_context_analysis_store()
+            # 写入消息索引文档（供 deep_read_message 使用）
+            index_docs = build_message_index_docs(recent_chats, target_person)
+            ctx_store.add_documents(index_docs)
+
+            # 生成并写入结构化分析文档
+            analysis_docs = engineer_chat_context(recent_chats, target_person)
+            if analysis_docs:
+                ctx_store.add_documents(analysis_docs)
+                msg += f"，并生成 {len(analysis_docs)} 份结构化指标 + {len(index_docs)} 条消息索引"
+        except Exception as ctx_err:
+            print(f"Context Engineering 失败（不影响原始消息存储）: {ctx_err}")
+
         return msg + "！"
     except Exception as e:
         print(f"写入向量库失败: {e}")
@@ -274,9 +307,10 @@ def clear_vector_stores() -> str:
             conn.execute(_text("DROP TABLE IF EXISTS langchain_pg_collection CASCADE"))
             conn.commit()
         # 重置缓存，下次访问时重新创建
-        global _knowledge_store, _chat_history_store, _dim_warning
+        global _knowledge_store, _chat_history_store, _context_analysis_store, _dim_warning
         _knowledge_store = None
         _chat_history_store = None
+        _context_analysis_store = None
         _dim_warning = None
         return "向量表已清除。请重新导入知识文件和聊天记录。"
     except Exception as e:
