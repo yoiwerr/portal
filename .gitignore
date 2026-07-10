@@ -6,6 +6,7 @@ dist/
 
 # Virtual env
 .venv/
+.venv_broken/
 
 # Secrets & env
 .env
