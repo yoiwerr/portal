@@ -30,16 +30,16 @@ def set_text_tool_model(model):
 @tool
 def parse_text(text: str, format_hint: str = "") -> str:
     """
-    从非结构化文本中提取结构化信息。
+    【用途】从非结构化文本中自动检测并提取结构化数据。支持 JSON、Markdown 表格、日志条目、键值对四种格式的自动识别。
 
-    适用场景:
-    - 用户粘贴了一段日志/报错信息 → 提取关键字段
-    - 用户给了一段需求描述 → 提取为 JSON 格式
-    - 用户给了表格数据 → 格式化为 Markdown 表格
+    【不要用】
+    - LLM 自己能一眼看出的简单提取（如 "把这段话里的数字找出来"）
+    - 语义理解型提取（如 "提取所有负面评价" — 需要 LLM，规则引擎做不了）
+    - 超大文本（> 10K 字符）— 先交给 summarize_text 压缩
 
-    参数:
-    - text: 要解析的原始文本
-    - format_hint: 期望的输出格式（如 "json"、"markdown table"、"bullet list"）
+    【优先级】🟡 中等 — 规则引擎，确定性高但没有语义理解能力。适用于格式规整的文本。
+
+    【参数】text: 原始文本；format_hint: 期望输出格式 ("json" / "markdown table" / "bullet list")，留空则自动检测。
     """
     logger.info(f"[Tool] parse_text: {len(text)} chars, hint={format_hint}")
 
@@ -103,18 +103,17 @@ def parse_text(text: str, format_hint: str = "") -> str:
 @tool
 def compare_texts(text_a: str, text_b: str, label_a: str = "A", label_b: str = "B") -> str:
     """
-    对比两段文本（或两个版本的文档/代码），输出差异报告。
+    【用途】逐行对比两段文本/文档/代码，输出行级差异报告 + 相似度统计。
 
-    适用场景:
-    - 对比两个技术方案的优劣
-    - 对比修改前后的提示词版本
-    - 对比两个调研结论的一致性
+    【不要用】
+    - 语义对比（如 "方案A比方案B好在哪"）— 规则引擎只能做字面差异，语义对比交给 LLM
+    - 单段文本（需要两段才能对比）
+    - 超过 500 行的文本（行级 diff 输出会爆炸）
 
-    参数:
-    - text_a: 第一段文本
-    - text_b: 第二段文本
-    - label_a: 文本 A 的标签（如 "方案A"、"V1"）
-    - label_b: 文本 B 的标签
+    【优先级】🟢 低 — 规则引擎行级对比，仅在需要精确字面差异时使用。大多数情况下 LLM 直接对比效果更好。
+
+    【参数】text_a: 第一段文本；text_b: 第二段文本；label_a/label_b: 文本标签 (如 "V1"/"V2" 或 "方案A"/"方案B")。
+    【注意】此工具为纯规则引擎，不做语义理解。行号对齐基于简单行序对比，非 LCS 算法。
     """
     logger.info(f"[Tool] compare_texts: A={len(text_a)} chars, B={len(text_b)} chars")
 
@@ -183,14 +182,17 @@ def compare_texts(text_a: str, text_b: str, label_a: str = "A", label_b: str = "
 @tool
 def summarize_text(text: str, max_length: int = 500) -> str:
     """
-    对长文本进行分段摘要。用于处理超长文档、文章、或对话历史。
+    【用途】对长文本做规则引擎提取摘要。按段落拆分，每段取首句/关键句，拼接为目标长度。
 
-    注意: 此工具使用规则提取（不调用 LLM），如需 LLM 级摘要请
-    让 Agent 直接阅读文本后用自然语言总结。
+    【不要用】
+    - 需要语义理解 / 深层分析的摘要（规则引擎只看位置，不懂内容）— 让 LLM 直接总结
+    - 短文本 (≤ max_length) — 不需要摘要
+    - 需要保留细节的文档 — 规则摘要会丢失大量信息
 
-    参数:
-    - text: 要摘要的文本
-    - max_length: 摘要目标长度（字符数），默认 500
+    【优先级】🟢 最低 — 本质是文本截断器，非 LLM 级摘要。仅在文本超过上下文窗口限制、需要快速压缩时使用。绝大多数场景下 LLM 直接阅读原文效果更好。
+
+    【参数】text: 要压缩的长文本；max_length: 目标摘要长度（字符数，默认 500）。
+    【注意】⚠️ 此工具不调用 LLM，按位置规则提取（首句优先）。信息丢失不可避免，不要假称 "已完整理解"。
     """
     logger.info(f"[Tool] summarize_text: {len(text)} chars → target {max_length}")
 

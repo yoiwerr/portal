@@ -46,6 +46,36 @@ MAX_REFLECTION_RETRIES = 2
 DEFAULT_MAX_TOOL_ROUNDS = 10
 CLARIFY_THRESHOLD = 0.75
 MAX_CLARIFY_ROUNDS = 5
+MAX_CHECKPOINT_RETRIES = 1     # checkpoint 失败最多重试 1 次
+
+
+# ============================================================
+# Planner 升级: 语义中枢 Checkpoint Prompt
+# ============================================================
+
+PLANNER_CHECKPOINT_PROMPT = """你是语义对齐审核员。检查执行结果是否与用户原始意图一致。
+
+## 审核标准
+- **语义对齐**: 输出的内容是否回答了用户真正在问的问题？有没有答非所问？
+- **意图偏移**: 执行过程中是否偏离了 Planner 最初设定的目标？
+- **知识库忠实度**: 输出中的技术声明是否能在提供的知识库参考中找到依据？有没有编造知识库中不存在的信息？
+- **遗漏**: 用户的多个子问题是否都覆盖了？
+
+## 输出格式
+只输出 JSON:
+{
+  "aligned": true/false,
+  "score": 0-10,
+  "drift_description": "如果有偏移，描述偏移了什么（未偏移则为空）",
+  "correction": "如果未对齐，给出明确的修正方向（空则无需修正）",
+  "hallucination_detected": false,
+  "hallucination_details": []
+}
+
+- score >= 7: 对齐，无需修正
+- score < 7: 需要修正方向
+- hallucination_detected: 如果输出中编造了知识库中不存在的信息，设为 true
+"""
 
 
 # ============================================================
@@ -61,11 +91,20 @@ class AgentState(TypedDict):
     clarify_round: int
     plan: dict
     rag_context: str
-    enriched_query: str           # RAG 用增强 query（原 query + 上下文拼接）
+    enriched_query: str           # RAG 用增强 query（ContextEngine 预构建）
     tool_results: list
     output: str
     reflection_count: int
     intent: dict
+    # ── 三层上下文注入 ──
+    l1_raw: str                   # L1: 最近 3 轮完整原文
+    l2_summary: str               # L2: 滚动摘要（全部历史的压缩版）
+    l3_facts: str                 # L3: 从历史召回的语义事实
+    last_turn_summary: str        # 上轮用户问了什么 + AI 做了什么
+    turn_count: int               # 当前对话轮数
+    # ── Planner 升级: checkpoint ──
+    checkpoint_feedback: str      # Planner 中途检查的语义修正意见
+    checkpoint_retry_count: int   # checkpoint→execute 重试次数 (独立于 reflection)
 
 
 # ── Skill System Prompt 映射 ──
@@ -138,54 +177,16 @@ async def router_node(state: AgentState, model=None) -> dict:
 
 def enrich_query_node(state: AgentState) -> dict:
     """
-    在 RAG 检索前，用上下文补全用户的原始 query。
+    从 AgentState 中取出 ContextEngine 预构建的 enriched_query。
 
-    不做 LLM 调用，纯规则拼接:
-    - 已有维度信息（来自历史对话/追问轮次）
-    - 意图对应的搜索关键词
-    - 解决"那个项目"→"React博客项目"的指代问题
-
-    拼接格式: [关键词] [上下文] [原始消息]
+    真正的 query 增强逻辑已移至 core/context_engine.py，
+    在 graph 执行前由 Agent._build_initial_state() 调用。
+    此节点仅做透传 + 兜底。
     """
-    message = _get_last_user_message(state)
-    intent = state.get("intent", {})
-    expressed = state.get("expressed_dimensions", {})
-
-    context_parts = []
-
-    # 1. 从已有维度提取关键词
-    for key, val in expressed.items():
-        if key.endswith("_confidence"):
-            continue
-        if val and str(val) != "null" and len(str(val)) > 1:
-            context_parts.append(str(val))
-
-    # 2. 意图 → 搜索关键词
-    scene = intent.get("scene", "")
-    scene_keywords = {
-        "prompt_optimize": "提示词优化 提示词工程 prompt engineering",
-        "work_plan":       "工作安排 项目计划 任务分解 工作流",
-        "info_organize":   "信息整理 知识管理 文档保存",
-        "research":        "技术选型 方案对比 调研分析",
-        "code_help":       "代码审查 调试 测试 重构",
-    }
-    if scene in scene_keywords:
-        context_parts.append(scene_keywords[scene])
-
-    # 可选: 拼背景
-    bg = state.get("background", "")
-    if bg and len(bg) > 3:
-        context_parts.append(bg)
-
-    # 拼接 enriched query
-    if context_parts:
-        enriched = " ".join(context_parts) + " " + message
-    else:
-        enriched = message
-
-    # 去重去噪
-    enriched = " ".join(dict.fromkeys(enriched.split()))  # 去重但保序
-    enriched = enriched[:500]  # 限制长度，防止 embedding 稀释
+    enriched = state.get("enriched_query", "")
+    if not enriched:
+        # 兜底: 直接用原始消息
+        enriched = _get_last_user_message(state)
 
     return {"enriched_query": enriched}
 
@@ -226,11 +227,27 @@ async def planner_node(state: AgentState, model=None, rag_service=None) -> dict:
     existing_dims = state.get("expressed_dimensions", {}) or {}
     existing_dims_text = format_expressed_dimensions(existing_dims)
 
+    # ── 三层上下文注入 ──
+    l2_summary = state.get("l2_summary", "")
+    l1_raw = state.get("l1_raw", "")
+    l3_facts = state.get("l3_facts", "")
+    turn_count = state.get("turn_count", 0)
+
+    context_block = ""
+    if l2_summary:
+        context_block += "\n## 🔴 前情提要（滚动摘要）\n" + str(l2_summary) + "\n"
+    if l1_raw:
+        label = "🟡" if l2_summary else "🟢"
+        context_block += f"\n## {label} 最近对话\n" + str(l1_raw) + "\n"
+    if l3_facts:
+        context_block += "\n## 🟢 历史语义事实\n" + str(l3_facts) + "\n"
+
     planner_prompt = f"""{PLANNER_SYSTEM_PROMPT}
 
 ## 当前模块: {module}
 ## 意图识别: {intent.get('label', '未知')} (置信度: {intent.get('confidence', 0)})
-
+## 对话轮数: 第 {turn_count} 轮
+{context_block}
 ## 该模块的信息维度定义
 {dims_desc}
 
@@ -317,10 +334,32 @@ async def execute_node(state: AgentState, skills=None, model=None) -> dict:
     skill_system = _SKILL_SYSTEM_PROMPTS.get(skill_name, PROMPT_REFINER_SYSTEM)
     dims_text = format_expressed_dimensions(expressed)
 
+    # ── 三层上下文注入 ──
+    l2_summary = state.get("l2_summary", "")
+    l1_raw = state.get("l1_raw", "")
+    l3_facts = state.get("l3_facts", "")
+    last_turn_summary = state.get("last_turn_summary", "")
+    checkpoint_feedback = state.get("checkpoint_feedback", "")
+
+    exec_context_block = ""
+    if l2_summary:
+        exec_context_block += "\n## 🔴 前情提要（滚动摘要）\n" + str(l2_summary) + "\n"
+    if l1_raw:
+        label = "🟡" if l2_summary else "🟢"
+        exec_context_block += "\n## " + label + " 最近对话\n" + str(l1_raw) + "\n"
+    if l3_facts:
+        exec_context_block += "\n## 🟢 历史语义事实\n" + str(l3_facts) + "\n"
+    if checkpoint_feedback:
+        exec_context_block += (
+            "\n## ⚠️ Planner 语义修正\n"
+            "上次执行偏离了方向，请根据以下反馈调整:\n" +
+            str(checkpoint_feedback) + "\n"
+        )
+
     full_system_prompt = f"""{skill_system}
 
 {EXECUTOR_SYSTEM_PROMPT}
-
+{exec_context_block}
 ## 当前任务的上下文
 - 目标: {plan.get('goal', '完成用户请求')}
 - 执行步骤: {json.dumps(plan.get('execution_plan', []), ensure_ascii=False)}
@@ -383,6 +422,94 @@ async def execute_node(state: AgentState, skills=None, model=None) -> dict:
 
 
 # ============================================================
+# 节点 5: Planner Checkpoint — 语义中枢介入
+# ============================================================
+
+async def checkpoint_node(state: AgentState, model=None) -> dict:
+    """
+    Planner 语义中枢 — 每次 Executor 完成后介入，检查语义对齐。
+
+    与 Reflector 的分工:
+    - Checkpoint: 检查「方向对不对」（语义对齐）— 快速，单次 LLM
+    - Reflector:  检查「质量好不好」（完整性、准确性）— 更深，包含评分
+
+    Checkpoint 的作用: 在 Reflector 之前先拦截明显的语义偏移，
+    避免质量检查浪费在方向性错误上。
+    """
+    output = state.get("output", "")
+    plan = state.get("plan", {})
+    message = _get_last_user_message(state)
+    rag_context = state.get("rag_context", "")
+    checkpoint_retry_count = state.get("checkpoint_retry_count", 0)
+    l2_summary = state.get("l2_summary", "")
+    l1_raw = state.get("l1_raw", "")
+
+    # 超过最大 checkpoint 重试次数 → 跳过，让 reflector 决定
+    if checkpoint_retry_count >= MAX_CHECKPOINT_RETRIES:
+        return {"checkpoint_feedback": ""}
+
+    if not output or len(output.strip()) < 30:
+        return {
+            "checkpoint_feedback": "输出过短或不完整，请根据用户需求重新生成完整回答。",
+            "checkpoint_retry_count": checkpoint_retry_count + 1,
+        }
+
+    try:
+        rag_brief = rag_context[:800] if rag_context else "（无知识库参考）"
+
+        # ── 三层上下文注入 ──
+        context_block = ""
+        if l2_summary:
+            context_block += "\n## 🔴 前情提要\n" + str(l2_summary)[:400] + "\n"
+        if l1_raw:
+            context_block += "\n## 🟡 最近对话\n" + str(l1_raw)[:600] + "\n"
+
+        checkpoint_prompt = f"""{PLANNER_CHECKPOINT_PROMPT}
+
+## Planner 设定的原始目标
+{plan.get('goal', '完成用户请求')}
+
+## 用户的原始消息
+{message}
+{context_block}
+## 知识库参考（判断技术声明是否有依据）
+{rag_brief}
+
+## Executor 的实际输出（前 1500 字符）
+{output[:1500]}
+
+请评估语义对齐程度，输出 JSON。"""
+
+        structured_model = model.bind(response_format={"type": "json_object"})
+        response = await structured_model.ainvoke([
+            SystemMessage(content=checkpoint_prompt),
+            HumanMessage(content="请评估语义对齐程度，输出 JSON。"),
+        ])
+        checkpoint = _parse_checkpoint_json(response.content)
+    except Exception as e:
+        logger.warning(f"[Checkpoint] LLM 失败，默认通过: {e}")
+        return {"checkpoint_feedback": ""}
+
+    if checkpoint.get("aligned", True):
+        logger.info(f"[Checkpoint] ✅ 语义对齐 (score={checkpoint.get('score', 8)})")
+        return {"checkpoint_feedback": ""}
+    else:
+        correction = checkpoint.get("correction", "请重新审视用户需求，确保输出与用户意图一致。")
+        logger.warning(
+            f"[Checkpoint] ❌ 语义偏移 (score={checkpoint.get('score', 0)}): "
+            f"{checkpoint.get('drift_description', '未知偏移')[:100]}"
+        )
+        return {
+            "checkpoint_feedback": correction,
+            "checkpoint_retry_count": checkpoint_retry_count + 1,
+            "plan": {
+                **plan,
+                "retry_reason": f"[语义偏移] {checkpoint.get('drift_description', '')}",
+            },
+        }
+
+
+# ============================================================
 # 节点 4: Reflect
 # ============================================================
 
@@ -390,6 +517,7 @@ async def reflect_node(state: AgentState, model=None) -> dict:
     output = state.get("output", "")
     plan = state.get("plan", {})
     message = _get_last_user_message(state)
+    rag_context = state.get("rag_context", "")
     reflection_count = state.get("reflection_count", 0)
 
     if not output or len(output.strip()) < 50:
@@ -404,6 +532,8 @@ async def reflect_node(state: AgentState, model=None) -> dict:
         return {"reflection_count": reflection_count}
 
     try:
+        rag_brief = rag_context[:800] if rag_context else "（无知识库参考）"
+
         reflect_prompt = f"""{REFLECTOR_SYSTEM_PROMPT}
 
 ## 用户原始需求
@@ -411,6 +541,9 @@ async def reflect_node(state: AgentState, model=None) -> dict:
 
 ## 期望完成的目标
 {plan.get('goal', '完成用户请求')}
+
+## 知识库参考（判断技术声明是否有依据）
+{rag_brief}
 
 ## 实际输出（前 2000 字符）
 {output[:2000]}
@@ -457,25 +590,46 @@ def route_after_reflect(state: AgentState) -> Literal["execute", "__end__"]:
     return "__end__"
 
 
+def route_after_checkpoint(state: AgentState) -> Literal["reflect", "execute"]:
+    """Checkpoint 判断: 语义对齐就走 reflect，偏离就回 execute 重试（最多 MAX_CHECKPOINT_RETRIES 次）。"""
+    feedback = state.get("checkpoint_feedback", "")
+    checkpoint_retry_count = state.get("checkpoint_retry_count", 0)
+    if feedback and checkpoint_retry_count <= MAX_CHECKPOINT_RETRIES:
+        return "execute"
+    return "reflect"
+
+
 # ============================================================
 # 构建图
 # ============================================================
 
 def create_graph(rag_service=None, skills=None, model=None):
     """
-    构建 LangGraph 状态图 (V2 + Router)。
+    构建 LangGraph 状态图 (V3 — Planner 语义中枢 + 三层上下文)。
 
-    流程: START → router → rag → planner → {clarify | execute → reflect → {execute | END}}
+    流程:
+      START → router → enrich → rag → planner → {clarify | execute}
+                                                        ↓
+                                                  execute → checkpoint → {reflect | execute}
+                                                                              ↓
+                                                                        reflect → {execute | END}
+
+    Planner 升级:
+      旧 (V2): Planner 只在开头分析一次 → 然后不管了
+      新 (V3): Planner 通过 checkpoint_node 在每次 Executor 完成后介入，
+              检查语义对齐。如果方向跑偏了，立即给出修正意见 → 回 execute 重试。
+              这是一种「持续语义监控」而非一次性分析。
     """
     workflow = StateGraph(AgentState)
 
-    async def _router(state):  return await router_node(state, model)
-    async def _enrich(state): return enrich_query_node(state)
-    async def _rag(state):     return await rag_retrieve_node(state, rag_service)
-    async def _planner(state): return await planner_node(state, model, rag_service)
-    async def _clarify(state): return await clarify_node(state, model)
-    async def _execute(state): return await execute_node(state, skills, model)
-    async def _reflect(state): return await reflect_node(state, model)
+    async def _router(state):     return await router_node(state, model)
+    async def _enrich(state):     return enrich_query_node(state)
+    async def _rag(state):        return await rag_retrieve_node(state, rag_service)
+    async def _planner(state):    return await planner_node(state, model, rag_service)
+    async def _clarify(state):    return await clarify_node(state, model)
+    async def _execute(state):    return await execute_node(state, skills, model)
+    async def _checkpoint(state): return await checkpoint_node(state, model)
+    async def _reflect(state):    return await reflect_node(state, model)
 
     workflow.add_node("router", _router)
     workflow.add_node("enrich", _enrich)
@@ -483,6 +637,7 @@ def create_graph(rag_service=None, skills=None, model=None):
     workflow.add_node("planner", _planner)
     workflow.add_node("clarify", _clarify)
     workflow.add_node("execute", _execute)
+    workflow.add_node("checkpoint", _checkpoint)
     workflow.add_node("reflect", _reflect)
 
     workflow.add_edge(START, "router")
@@ -494,7 +649,12 @@ def create_graph(rag_service=None, skills=None, model=None):
         {"clarify": "clarify", "execute": "execute"},
     )
     workflow.add_edge("clarify", END)
-    workflow.add_edge("execute", "reflect")
+    # ── V3: execute → checkpoint → {reflect | execute} ──
+    workflow.add_edge("execute", "checkpoint")
+    workflow.add_conditional_edges(
+        "checkpoint", route_after_checkpoint,
+        {"reflect": "reflect", "execute": "execute"},
+    )
     workflow.add_conditional_edges(
         "reflect", route_after_reflect,
         {"execute": "execute", "__end__": END},
@@ -532,6 +692,17 @@ def _parse_reflection_json(content: str) -> dict:
         try: return json.loads(match.group(0))
         except json.JSONDecodeError: pass
     return {"pass": True, "score": 7}
+
+
+def _parse_checkpoint_json(content: str) -> dict:
+    import re
+    try: return json.loads(content)
+    except json.JSONDecodeError: pass
+    match = re.search(r'\{.*\}', content, re.DOTALL)
+    if match:
+        try: return json.loads(match.group(0))
+        except json.JSONDecodeError: pass
+    return {"aligned": True, "score": 8}
 
 
 def _fallback_plan(message: str, dimensions: dict) -> dict:

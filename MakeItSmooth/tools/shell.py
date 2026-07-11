@@ -90,21 +90,18 @@ def _is_safe_command(cmd: str) -> tuple[bool, str]:
 @tool
 def run_shell_preview(command: str) -> str:
     """
-    执行只读 Shell 命令，预览项目结构、文件内容、Git 状态等。
+    【用途】执行白名单只读 Shell 命令，预览项目结构、文件内容、Git 状态等。白名单: ls / cat / head / tail / wc / tree / git(log/status/branch/diff/show) / du / find / file。
 
-    白名单命令: ls / cat / head / tail / wc / tree / git(log/status/branch/diff/show) / du / find / file
+    【不要用】
+    - 任何需要写入/修改/删除的操作（被安全策略拦截）
+    - 不确定命令是否在白名单内时（先列白名单给用户确认）
+    - 需要管道、重定向、分号的复合命令（被安全策略拦截）
+    - 执行脚本或二进制文件
 
-    适用场景:
-    - 查看项目目录结构: run_shell_preview("ls -la")
-    - 读取配置文件: run_shell_preview("cat config.py")
-    - 查看 Git 状态: run_shell_preview("git status")
-    - 统计代码量: run_shell_preview("wc -l app.py")
+    【优先级】🟢 低 — 仅在需要查看文件系统状态时使用。大多数信息 LLM 可从对话上下文中推断。
 
-    限制:
-    - 仅限只读命令
-    - git 只允许 log/status/branch/diff/show
-    - 禁止管道、重定向、分号
-    - 超时 10 秒
+    【参数】command: 单个白名单命令 + 参数，如 "ls -la"、"git diff"、"cat config.py"。
+    【限制】超时 10 秒，输出截断至 5000 字符，禁止管道/重定向/分号。
     """
     logger.info(f"[Tool] run_shell_preview: {command}")
 

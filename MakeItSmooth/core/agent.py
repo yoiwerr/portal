@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import AsyncIterator
 
 from core.graph import create_graph
+from core.context_engine import ContextEngine
 from services.rag_service import RAGService
 from services.session_store import SessionStore
 from tools.search import set_tool_services
@@ -28,6 +29,10 @@ class Agent:
         self.rag = rag_service
         self.sessions = session_store
         self.config = config
+
+        # ── Context Engine（对话摘要 + 压缩 + L3 LLM提取 + PGVector持久化）──
+        # vector_store + embedding_fn 在 _init_memory 后补注入（依赖 rag 初始化）
+        self.context_engine = ContextEngine(model=model)
 
         # ── 注入模型到 delegate tool ──
         from tools.delegate import set_delegate_model
@@ -79,7 +84,11 @@ class Agent:
                 embedding_model=embed_model,
                 llm_model=self.model,
             )
-            logger.info("[Memory] L2/L3 记忆系统已初始化")
+            # ── 注入 vector_store + embedding_fn 到 ContextEngine ──
+            self.context_engine.vector_store = vector_store
+            self.context_engine.embedding_fn = embed_model.embed_documents
+
+            logger.info("[Memory] L2/L3 记忆系统已初始化 (ContextEngine L3 已接入 PGVector)")
         except Exception as e:
             logger.warning(f"[Memory] 初始化失败 (可忽略): {e}")
 
@@ -107,7 +116,7 @@ class Agent:
         # ── 记忆注入 ──
         memory_context = await self._retrieve_memory(message)
 
-        initial_state = self._build_initial_state(
+        initial_state = await self._build_initial_state(
             message=message, module=module, background=background,
             session_id=session_id, extra_context=extra_context,
             dimensions=dimensions, clarify_round=clarify_round,
@@ -147,6 +156,17 @@ class Agent:
             # ── 会话结束时自动摘要 ──
             await self._summarize_on_complete(session_id, output, intent)
 
+        # ── 三层上下文更新：每轮对话后更新 L2 摘要 + 提取 L3 事实 ──
+        try:
+            messages = self.sessions.get_conversation(session_id)
+            await self.context_engine.update_after_turn(
+                messages=messages,
+                session_id=session_id,
+                turn_output=output,
+            )
+        except Exception as e:
+            logger.warning(f"[ContextEngine] 更新失败 (非关键): {e}")
+
         return {
             "type": action_type, "session_id": session_id, "message": output,
             "state_update": {
@@ -184,7 +204,7 @@ class Agent:
         # ── 记忆注入 ──
         memory_context = await self._retrieve_memory(message)
 
-        initial_state = self._build_initial_state(
+        initial_state = await self._build_initial_state(
             message=message, module=module, background=background,
             session_id=session_id, extra_context=extra_context,
             dimensions=dimensions, clarify_round=clarify_round,
@@ -275,6 +295,17 @@ class Agent:
                 # ── 会话结束时自动摘要 ──
                 await self._summarize_on_complete(session_id, output, intent)
 
+        # ── 三层上下文更新：每轮对话后更新 L2 摘要 + 提取 L3 事实 ──
+        try:
+            messages = self.sessions.get_conversation(session_id)
+            await self.context_engine.update_after_turn(
+                messages=messages,
+                session_id=session_id,
+                turn_output=output,
+            )
+        except Exception as e:
+            logger.warning(f"[ContextEngine] 更新失败 (非关键): {e}")
+
         yield {"event": "done", "data": {
             "session_id": session_id, "message_id": 0, "tokens_used": token_count,
             "intent": intent,
@@ -339,8 +370,17 @@ class Agent:
     # 工具方法
     # ============================================================
 
-    def _build_initial_state(self, message, module, background, session_id,
+    async def _build_initial_state(self, message, module, background, session_id,
                              extra_context, dimensions, clarify_round, memory_context="") -> dict:
+        # ── Context Engine: 构建对话上下文 ──
+        ctx = await self.context_engine.build(
+            session_store=self.sessions,
+            session_id=session_id,
+            current_message=message,
+            intent=None,  # intent 此时尚未识别，Router 会在 graph 中处理
+            expressed_dimensions=dimensions,
+        )
+
         # 把记忆上下文拼到 extra_context 前面
         full_extra = extra_context or ""
         if memory_context:
@@ -354,12 +394,21 @@ class Agent:
             "expressed_dimensions": dimensions,
             "clarify_round": clarify_round,
             "rag_context": "",
-            "enriched_query": "",
+            "enriched_query": ctx.enriched_query,
             "plan": {},
             "tool_results": [],
             "reflection_count": 0,
             "output": "",
             "intent": {},
+            # ── 三层上下文注入 ──
+            "l1_raw": ctx.l1_raw,
+            "l2_summary": ctx.l2_summary,
+            "l3_facts": ctx.l3_facts,
+            "last_turn_summary": ctx.last_turn_summary,
+            "turn_count": ctx.turn_count,
+            # ── Planner checkpoint ──
+            "checkpoint_feedback": "",
+            "checkpoint_retry_count": 0,
         }
 
     def list_sessions(self, module=None):

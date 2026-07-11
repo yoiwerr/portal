@@ -25,18 +25,17 @@ def set_knowledge_tool_services(rag_service=None, config=None):
 @tool
 def add_to_knowledge_base(content: str, title: str = "", source: str = "conversation") -> str:
     """
-    将一段有价值的知识/信息持久化存入本地知识库（PGVector）。
-    后续对话中可通过 search_knowledge_base 检索到。
+    【用途】将对话中提炼的有价值知识持久化写入 PGVector 向量库。后续对话可通过 search_knowledge_base 检索到。
 
-    使用时机:
-    - 用户在对话中透露了重要决策、偏好、技术选型理由
-    - Agent 发现了一个值得记住的最佳实践
-    - 对话中产生了可复用的代码片段/配置模板
+    【不要用】
+    - 临时/一次性的闲聊内容（不值得持久化）
+    - 用户隐私信息（密码、联系方式等）
+    - 已有重复内容（content_hash 会自动去重，但浪费一次 embedding 调用）
+    - 少于 20 字符的碎片信息
 
-    参数:
-    - content: 要存入的知识内容（Markdown 格式最佳）
-    - title: 知识标题（可选）
-    - source: 来源标识（默认 "conversation"）
+    【优先级】🟢 低 — 仅在用户明确要求保存、或 Agent 确认信息值得留存时使用。
+
+    【参数】content: 知识内容 (Markdown 最佳)；title: 标题 (可选，默认取首行)；source: 来源标识 (默认 "conversation")。
     """
     if _rag_service is None:
         return "（知识库服务未初始化，无法写入）"
@@ -108,7 +107,15 @@ def add_to_knowledge_base(content: str, title: str = "", source: str = "conversa
 
 @tool
 def list_knowledge_sources() -> str:
-    """列出知识库中已有的知识来源和统计信息。"""
+    """
+    【用途】列出知识库中已有知识来源的统计信息（总片段数、源文件数、文件名）。
+
+    【不要用】
+    - 需要检索具体知识内容时（用 search_knowledge_base）
+    - 用户没有问 "知识库有什么" 时（主动展示无意义）
+
+    【优先级】🟢 最低 — 仅在用户询问知识库状态或需要了解可用知识范围时使用。
+    """
     if _rag_service is None:
         return "（知识库服务未初始化）"
 

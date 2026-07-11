@@ -38,8 +38,16 @@ def set_tool_services(rag_service=None, session_store=None, session_id=None, con
 @tool
 def search_knowledge_base(query: str) -> str:
     """
-    从本地知识库中检索与查询相关的领域知识。
-    当需要推荐工具、提供最佳实践、查询技术选型建议时，调用此工具。
+    【用途】从本地知识库 (PGVector) 中检索领域知识。适用于推荐工具、最佳实践、技术选型建议等已有文档覆盖的内容。
+
+    【不要用】
+    - 需要实时/最新信息时（用 search_web）
+    - 纯代码语法问题（知识库不存代码文档）
+    - 常识性问题（直接回答，不需要检索）
+
+    【优先级】🔴 最高 — 每次执行任务前必须先搜本地知识库。
+
+    【参数】query: 搜索查询，尽量用关键词而非完整句子，英文术语效果更好。
     """
     logger.info(f"[Tool] search_knowledge_base: {query}")
     if _rag_service is None:
@@ -57,10 +65,18 @@ def search_knowledge_base(query: str) -> str:
 @tool
 def search_web(query: str) -> str:
     """
-    联网搜索互联网获取最新信息。当本地知识库无法回答、或需要查询
-    最新新闻/技术动态/实时数据时调用此工具。
+    【用途】联网搜索互联网获取最新信息（Tavily API）。适用于本地知识库无覆盖、需要最新新闻/技术动态/实时数据时。
 
-    需要环境变量 TAVILY_API_KEY 或 SEARCH_API_KEY。
+    【不要用】
+    - 本地知识库已有答案时（先用 search_knowledge_base）
+    - 纯代码/语法/调试问题（不需要联网）
+    - 常识性问题（直接回答）
+    - 需要深度分析时（用 delegate_task 代替，它能搜索+阅读+分析）
+
+    【优先级】🟡 中等 — 仅在 search_knowledge_base 返回 "未找到" 后使用。
+
+    【参数】query: 搜索词，英文效果更好。不超过 50 字符，用关键词而非完整句子。
+    【前置条件】需设置 TAVILY_API_KEY 或 SEARCH_API_KEY 环境变量。
     """
     logger.info(f"[Tool] search_web: {query}")
 
@@ -140,10 +156,18 @@ def _format_search_results(result: dict) -> str:
 @tool
 def fetch_url(url: str) -> str:
     """
-    抓取指定网页 URL 的内容并提取为纯文本。
-    当用户提供链接、想阅读在线文档/文章/代码时调用此工具。
+    【用途】抓取指定网页 URL 并提取为纯文本（前 8000 字符）。适用于用户提供链接、需要阅读在线文档/文章/代码时。
 
-    限制: 仅抓取前 8000 字符，超时 15 秒。
+    【不要用】
+    - 需要登录/认证的页面（会抓到登录页）
+    - 大文件下载或 API 接口调用
+    - 已知内容的页面（重复抓取）
+    - 非 HTML/纯文本页面（PDF、视频等）
+
+    【优先级】🟢 低 — 仅在 search_web 搜索结果需要深入阅读时使用。
+
+    【参数】url: 完整的 HTTP/HTTPS URL。
+    【限制】超时 15 秒，前 8000 字符，仅支持 HTML 和纯文本。
     """
     logger.info(f"[Tool] fetch_url: {url}")
 
@@ -201,8 +225,17 @@ def _html_to_text(html: str) -> str:
 @tool
 def search_chat_history(query: str) -> str:
     """
-    检索当前会话中与查询相关的历史对话记录。
-    当用户提到之前说过的话、想参考之前的决策时，调用此工具。
+    【用途】检索当前会话中与查询相关的历史对话记录。适用于用户提到之前说过的话、想参考之前的决策时。
+
+    【不要用】
+    - 用户第一次发言时（无历史可搜）
+    - 查询与当前话题无关的历史时
+    - 需要精确事实时（应优先用 search_knowledge_base）
+
+    【优先级】🟢 低 — 仅在用户明确引用过去内容、或当前问题需要历史上下文时使用。
+
+    【参数】query: 搜索关键词（当前为关键词匹配，后续升级为向量检索）。
+    【注意】此工具依赖 Agent 主动调用。多轮对话时 execute_node 已自动注入上轮摘要，大部分情况不需要手动调用此工具。
     """
     logger.info(f"[Tool] search_chat_history: {query}")
     if _session_store is None or _session_id is None:

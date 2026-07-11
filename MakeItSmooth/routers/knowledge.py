@@ -29,9 +29,10 @@ async def search_knowledge(q: str, top_k: int = 5):
     chunks = await _agent.rag.query(q, top_k=top_k)
     results = []
     for i, chunk in enumerate(chunks):
+        doc_text = chunk.get("document", "") if isinstance(chunk, dict) else str(chunk)
         results.append(KnowledgeResult(
             name=f"结果 {i+1}",
-            description=chunk[:200],
+            description=doc_text[:200],
             relevance=1.0 - (i * 0.15),
         ))
     return {"results": results, "query": q}

@@ -70,8 +70,15 @@ class Config:
 
     # === RAG 配置 ===
     rag_top_k: int = 3
-    rag_chunk_size: int = 500
-    rag_chunk_overlap: int = 50
+    rag_chunk_min: int = 200
+    rag_chunk_max: int = 800
+    similarity_threshold: float = 0.6
+
+    # === Rerank 配置 ===
+    rerank_enabled: bool = True
+    rerank_model: str = "qwen3-rerank"       # 百炼 Rerank: qwen3-rerank / gte-rerank-v2
+    rerank_top_k: int = 5                     # 粗筛 top-N → Rerank → 精排 top-K
+    rerank_coarse_k: int = 20                 # 粗筛时的候选数（用于 Rerank 输入）
 
     # === 搜索 API ===
     search_api_key: str = ""               # Tavily / Brave Search API key
@@ -152,6 +159,16 @@ class Config:
 
         # Memory
         config.memory_enabled = os.getenv("MEMORY_ENABLED", "true").lower() != "false"
+
+        # RAG
+        config.rag_top_k = int(os.getenv("RAG_TOP_K", str(config.rag_top_k)))
+        config.similarity_threshold = float(os.getenv("SIMILARITY_THRESHOLD", str(config.similarity_threshold)))
+
+        # Rerank
+        config.rerank_enabled = os.getenv("RERANK_ENABLED", "true").lower() != "false"
+        config.rerank_model = os.getenv("RERANK_MODEL", config.rerank_model)
+        config.rerank_top_k = int(os.getenv("RERANK_TOP_K", str(config.rerank_top_k)))
+        config.rerank_coarse_k = int(os.getenv("RERANK_COARSE_K", str(config.rerank_coarse_k)))
 
         # Sandbox
         config.sandbox_enabled = os.getenv("SANDBOX_ENABLED", "false").lower() == "true"

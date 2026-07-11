@@ -10,7 +10,7 @@
 
 | Tool | 状态 | 说明 |
 |------|------|------|
-| `search_knowledge_base` | ✅ | ChromaDB 向量检索本地知识库，DashScope text-embedding-v3 |
+| `search_knowledge_base` | ✅ | PGVector 向量检索本地知识库，DashScope text-embedding-v4 |
 | `search_web` | 🔧 | **占位符**。需接入 Tavily Search API 或 Brave Search API |
 | `search_chat_history` | 🔧 | SQLite 关键词匹配，需升级为向量检索（用 ChromaDB 存对话 embedding） |
 | `search_codebase` | ❌ | **新增**：对当前工作目录做代码搜索（grep/ast-grep），找函数定义、引用关系 |

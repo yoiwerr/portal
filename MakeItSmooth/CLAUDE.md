@@ -111,7 +111,7 @@ tools: [search_knowledge_base, search_web]
 
 - **框架**: FastAPI + LangGraph + LangChain
 - **LLM**: 多 Provider (DashScope / DeepSeek / OpenAI / Local)
-- **向量存储**: ChromaDB + DashScope text-embedding-v3
+- **向量存储**: ChromaDB + DashScope text-embedding-v4
 - **会话**: SQLite (WSL 兼容)
 - **流式**: SSE (sse-starlette)
 
@@ -167,6 +167,30 @@ MakeItSmooth/
 ```
 
 ## Session 记录
+
+### 2026-07-11（上午 — 架构升级）
+
+1. **三层上下文架构 (V3)** — `core/context_engine.py` (300+ 行)，L1 滑动窗口 + L2 滚动摘要 + L3 语义事实，替代旧版按轮数阈值切换
+2. **Planner 升级为语义中枢** — `core/graph.py` 新增 `checkpoint_node`，Executor 后持续介入检查语义对齐
+3. **工具 docstring 三段式** — 12 个工具补齐【用途】【不要用】【优先级】【参数/返回】【限制】标注
+4. **约束规范文档** — `boundary.md`，7 个维度的 Harness Engineering 规范 + 附录优先级汇总 + 检查清单
+5. **Context Engineering 实战指南** — `docs/context-engineering-guide.md`，从问题诊断到代码落地的完整指南
+6. **RAG 深挖指南** — `docs/rag-deep-dive.md`，从单层检索到企业级多路召回（v2: 6 点反馈修订，含语义分块/qwen3-rerank/上下文驱动Query/幻觉ReAct本质）
+
+### 2026-07-11（下午 — RAG + 深挖）
+
+7. **Embedding 升级** — `text-embedding-v3` → `text-embedding-v4`，6 个文件同步
+8. **语义分块 (SemanticChunker)** — 相邻句子 embedding 相似度断崖切分
+9. **混合检索管道** — Dense + BM25(PG tsvector GIN) → RRF → qwen3-rerank → 相似度过滤 ≥0.6 → 关键词加权
+10. **Rerank** — 百炼 qwen3-rerank (120K token/500 docs/100+语言)
+11. **上下文驱动 Query 增强** — 去硬编码 scene_keywords，多源信号动态加权 + 话题切换检测
+12. **Prompt 层 RAG 指令** — Executor 来源引用 + Reflector/Checkpoint 幻觉检测
+13. **Code Review 8 项修复** — router crash / literal `\n` / 无限循环 / 死守卫 / inject_to_prompt 死代码 / RRF 污染 / 重复代码 / 零向量低效
+14. **L3 语义事实升级** — regex → LLM 结构化提取 (偏好/决策/约束/技术栈 + 置信度)，内存字典 → PGVector session_memory (embedding → 向量语义召回)，跨会话可用，LLM 不可用时自动降级
+15. **Checkpoint 完成** — 独立 retry 计数器 + L1/L2/RAG 上下文注入 + 幻觉检测维度
+16. **学习文档** — `docs/tool-loop-prevention.md` (工具防循环), `docs/hallucination-prevention.md` (幻觉防御), `docs/three-layer-rag.md` (三层 RAG)
+17. **boundary/TODO 分离** — boundary 放约束规范, TODO 放进度追踪
+18. **主题切换检测** — keyword 重叠率快检 → L2 摘要重置 + L3 内存清空, P1 全部完成
 
 ### 2026-07-10
 

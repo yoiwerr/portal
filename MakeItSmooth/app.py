@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
     print("  LangGraph + LangChain Agent + FastAPI")
     print(f"  Provider: {config.llm_provider} | Model: {config.llm_model}")
     print(f"  Vector DB: PostgreSQL + PGVector")
-    print(f"  Embedding: text-embedding-v3")
+    print(f"  Embedding: text-embedding-v4")
     print("=" * 60)
 
     print(f"\n[Data]   {config.data_dir}")
@@ -72,8 +72,13 @@ async def lifespan(app: FastAPI):
         vector_store=vector_store,
         knowledge_base_dir=config.knowledge_base_dir,
         api_key=config.dashscope_api_key,
-        chunk_size=config.rag_chunk_size,
-        chunk_overlap=config.rag_chunk_overlap,
+        chunk_min=config.rag_chunk_min,
+        chunk_max=config.rag_chunk_max,
+        similarity_threshold=config.similarity_threshold,
+        rerank_enabled=config.rerank_enabled,
+        rerank_model=config.rerank_model,
+        rerank_top_k=config.rerank_top_k,
+        rerank_coarse_k=config.rerank_coarse_k,
     )
     await rag_service.ensure_ready()
 

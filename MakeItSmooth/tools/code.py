@@ -34,20 +34,19 @@ def _is_enabled() -> bool:
 @tool
 def python_exec(code: str) -> str:
     """
-    在隔离的沙箱环境中执行 Python 代码，返回标准输出和标准错误。
+    【用途】在隔离沙箱中执行 Python 代码，返回 stdout/stderr。适用于数据分析、计算验证、格式转换（JSON/CSV/Markdown 互转）。
 
-    适用场景:
-    - 数据分析: 用户提供数据 → 写代码分析 → 返回结果
-    - 计算验证: 验证数学/逻辑推理
-    - 图表生成: 用 matplotlib 生成图表（返回 base64）
-    - 格式转换: JSON/CSV/Markdown 互转
+    【不要用】
+    - 纯文本处理、简单计算、不需要代码就能回答的问题（LLM 直接处理更快）
+    - 需要访问文件系统的任务（沙箱禁止文件写入）
+    - 需要网络请求的任务（沙箱禁止网络访问）
+    - 不确定代码是否安全时
 
-    限制:
-    - 超时 30 秒
-    - 禁止文件系统写操作 (open with 'w' 模式)
-    - 禁止网络访问
-    - 禁止 subprocess/os.system
-    - 内存限制 ~256MB
+    【优先级】🟡 中等 — 仅在需要精确计算或格式转换时使用，不要为了 "演示" 而调。
+
+    【参数】code: 完整的 Python 代码字符串。
+    【限制】超时 30s，禁止文件写入/网络/系统命令，可用模块：json, math, datetime, re, collections, itertools, csv 等。
+    【前置条件】需设置 SANDBOX_ENABLED=true。
     """
     if not _is_enabled():
         return (

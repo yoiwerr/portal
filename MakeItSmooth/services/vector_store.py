@@ -2,7 +2,7 @@
 PGVector 向量存储 — 替代 ChromaDB。
 
 与 ChatLab 共用 pgvector/pgvector:pg16 容器。
-Embedding 生成: DashScope text-embedding-v3 (1024维)，与 ChatLab 一致。
+Embedding 生成: DashScope text-embedding-v4 (1024维)，与 ChatLab 一致。
 
 用法:
     store = PGVectorStore(connection_string)
@@ -122,7 +122,7 @@ class PGVectorStore:
                 else:
                     results[coll_name] = "exists"
 
-                # 确保索引存在
+                # 确保向量索引存在 (IVFFlat)
                 idx_name = f"idx_{coll_name}_embedding"
                 cur.execute(sql.SQL("""
                     SELECT 1 FROM pg_indexes WHERE indexname = %s
@@ -140,6 +140,23 @@ class PGVectorStore:
                     ))
                     self.conn.commit()
                     logger.info(f"[PGVector] 创建索引: {idx_name}")
+
+                # 确保全文检索索引存在 (domain_knowledge 专用)
+                if coll_name == "domain_knowledge":
+                    fts_idx_name = f"idx_{coll_name}_fts"
+                    cur.execute(sql.SQL("""
+                        SELECT 1 FROM pg_indexes WHERE indexname = %s
+                    """), (fts_idx_name,))
+                    if cur.fetchone() is None:
+                        cur.execute(sql.SQL("""
+                            CREATE INDEX {} ON {}
+                            USING gin (to_tsvector('simple', document))
+                        """).format(
+                            sql.Identifier(fts_idx_name),
+                            sql.Identifier(coll_name),
+                        ))
+                        self.conn.commit()
+                        logger.info(f"[PGVector] 创建全文索引: {fts_idx_name}")
 
             cur.close()
         except Exception as e:
@@ -282,6 +299,89 @@ class PGVectorStore:
             return []
         finally:
             cur.close()
+
+    async def bm25_search(
+        self,
+        collection: str,
+        query: str,
+        top_k: int = 10,
+    ) -> list[dict]:
+        """PostgreSQL 全文检索 (BM25 等效) — PG tsvector/tsquery。
+
+        稠密向量检索的互补信号:
+          - 稠密 (PGVector): 捕获语义相似性
+          - 稀疏 (tsvector): 精确匹配专有名词/术语/代码符号
+
+        使用 'simple' 分词器避免 PG 默认的英文词干化
+        对中文的影响（中文分词依赖 zhparser 扩展，这里用单字切分兜底）。
+
+        Args:
+            collection: 表名 (通常为 domain_knowledge)
+            query: 原始查询文本
+            top_k: 返回数量
+
+        Returns:
+            [{id, document, metadata, score}, ...]
+            其中 score 是 ts_rank 归一化值 (0-1)
+        """
+        cur = self.conn.cursor()
+
+        try:
+            # plainto_tsquery('simple', ...) 将 query 转为 tsquery，
+            # 自动用 & 连接所有词 — 等价于 BM25 的 "所有词都要匹配"
+            cur.execute(
+                sql.SQL("""
+                    SELECT id, document, metadata,
+                           ts_rank(
+                               to_tsvector('simple', document),
+                               plainto_tsquery('simple', %s)
+                           ) AS score
+                    FROM {}
+                    WHERE to_tsvector('simple', document) @@ plainto_tsquery('simple', %s)
+                    ORDER BY score DESC
+                    LIMIT %s
+                """).format(sql.Identifier(collection)),
+                (query, query, top_k),
+            )
+
+            rows = cur.fetchall()
+            results = []
+            for row in rows:
+                results.append({
+                    "id": row[0],
+                    "document": row[1],
+                    "metadata": row[2] if isinstance(row[2], dict) else json.loads(row[2] or "{}"),
+                    "score": float(row[3]),
+                })
+            return results
+
+        except Exception as e:
+            self.conn.rollback()
+            logger.error(f"[PGVector] 全文检索失败 ({collection}): {e}")
+            return []
+        finally:
+            cur.close()
+
+    async def exists_by_metadata(
+        self,
+        collection: str,
+        metadata_filter: dict,
+    ) -> bool:
+        """检查是否存在满足 metadata 条件的文档（不跑向量检索）。
+
+        用于去重检查，直接查询 JSONB 字段，零向量计算开销。
+        """
+        cur = self.conn.cursor()
+        filter_json = json.dumps(metadata_filter)
+        cur.execute(
+            sql.SQL("SELECT 1 FROM {} WHERE metadata @> %s::jsonb LIMIT 1").format(
+                sql.Identifier(collection)
+            ),
+            (filter_json,),
+        )
+        row = cur.fetchone()
+        cur.close()
+        return row is not None
 
     async def get_by_id(self, collection: str, doc_id: str) -> Optional[dict]:
         """按 ID 获取单个文档。"""

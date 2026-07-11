@@ -197,7 +197,7 @@ def get_available_providers() -> list[str]:
 
 
 def get_embedding_model(config):
-    """创建 Embedding 模型 — 当前仅支持 DashScope text-embedding-v3。
+    """创建 Embedding 模型 — 当前仅支持 DashScope text-embedding-v4。
 
     后续可扩展为多 provider embedding。
     """
@@ -208,6 +208,6 @@ def get_embedding_model(config):
         raise ValueError("Embedding 模型需要 DASHSCOPE_API_KEY")
 
     return DashScopeEmbeddings(
-        model="text-embedding-v3",
+        model="text-embedding-v4",
         dashscope_api_key=api_key,
     )
