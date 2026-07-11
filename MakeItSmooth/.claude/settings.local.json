@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m pytest tests/ -v)",
+      "Bash(curl -sI https://github.com)",
+      "Bash(nslookup github.com)",
+      "Bash(ssh *)"
+    ]
+  }
+}
