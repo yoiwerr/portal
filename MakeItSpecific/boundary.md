@@ -1,4 +1,4 @@
-# Boundary — MakeItSmooth 约束与质量规范
+# Boundary — MakeItSpecific 约束与质量规范
 
 > Harness Engineering 落地文件。定义 Agent 行为的边界、质量标准、和设计要求。
 > 进度追踪与待办事项见 [TODO.md](TODO.md)。

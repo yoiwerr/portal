@@ -1,4 +1,4 @@
-# MakeItSmooth 项目治理
+# MakeItSpecific 项目治理
 
 > 项目宪章 — Agent 开发、审查、上线的流程规范。
 > 每次修改 Agent 行为前，查阅此文件。
@@ -152,7 +152,7 @@
 ## 七、项目文件规范
 
 ```
-MakeItSmooth/
+MakeItSpecific/
 ├── GOVERNANCE.md       ← 本文件（项目治理章程）
 ├── CLAUDE.md           ← 开发者文档（架构/启动/开发指南）
 ├── CAPABILITIES.md     ← 能力清单（Tools / Skills / MCP / API Key 矩阵）

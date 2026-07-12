@@ -1,21 +1,33 @@
 """MakeItSpecific — FastAPI + LangGraph + LangChain."""
 
 import logging, sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from contextlib import asynccontextmanager
 
 ROOT = Path(__file__).resolve().parent
-(ROOT / "data" / "logs").mkdir(parents=True, exist_ok=True)
+LOG_DIR = ROOT / "data" / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(ROOT))
 
+# 日志：终端 + 文件双写，单文件 5MB，保留 3 个备份
+_file_handler = RotatingFileHandler(
+    LOG_DIR / "app.log", maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8",
+)
+_file_handler.setFormatter(logging.Formatter(
+    "%(asctime)s [%(levelname)-5s] %(name)s | %(message)s", datefmt="%m-%d %H:%M:%S",
+))
 logging.basicConfig(level=logging.INFO,
     format="%(asctime)s [%(levelname)-5s] %(name)s | %(message)s",
-    datefmt="%m-%d %H:%M:%S", stream=sys.stdout)
+    datefmt="%m-%d %H:%M:%S",
+    handlers=[logging.StreamHandler(sys.stdout), _file_handler],
+)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from config import config
 from services.session_store import SessionStore
@@ -23,7 +35,7 @@ from services.vector_store import PGVectorStore, build_connection_string
 from services.rag_service import RAGService
 from core.llm_client import create_model
 from core.agent import Agent
-from routers import chat, sessions, knowledge
+from routers import chat, sessions, knowledge, feedback
 
 ss = None; rag = None; agent = None
 
@@ -67,7 +79,7 @@ async def lifespan(app: FastAPI):
 
     model = create_model(config)
     agent = Agent(model=model, rag_service=rag, session_store=ss, config=config)
-    chat.set_agent(agent); sessions.set_agent(agent); knowledge.set_agent(agent)
+    chat.set_agent(agent); sessions.set_agent(agent); knowledge.set_agent(agent); feedback.set_agent(agent)
 
     print("  [OK] ready\n")
     yield
@@ -76,9 +88,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="MakeItSpecific", version="3.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-app.include_router(chat.router); app.include_router(sessions.router); app.include_router(knowledge.router)
+app.include_router(chat.router); app.include_router(sessions.router); app.include_router(knowledge.router); app.include_router(feedback.router)
 
 STATIC = ROOT / "static"
+
+# 静态文件挂载 — 本地开发 + Docker 共用（nginx 反代会透传 /css/ /js/ 路径）
+app.mount("/css", StaticFiles(directory=str(STATIC / "css")), name="css")
+app.mount("/js", StaticFiles(directory=str(STATIC / "js")), name="js")
 
 @app.get("/", response_class=HTMLResponse)
 async def homepage():

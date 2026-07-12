@@ -8,7 +8,7 @@
 
 ## 一、先理解幻觉：四种类型
 
-AI 幻觉不是单一的「胡说八道」。在 MakeItSmooth 这个 AI 工作流增强 Agent 的场景下，幻觉可以按来源和表现分为四种类型。
+AI 幻觉不是单一的「胡说八道」。在 MakeItSpecific 这个 AI 工作流增强 Agent 的场景下，幻觉可以按来源和表现分为四种类型。
 
 ### 1.1 RAG 幻觉 -- 无视知识库，自由发挥
 
@@ -111,7 +111,7 @@ RAG 检索结果 (score 0.82):
 
 ## 二、当前项目已有的防御（现状分析）
 
-在写新的防御之前，先盘点 MakeItSmooth 已经做了哪些事。以下全部来自代码实际实现。
+在写新的防御之前，先盘点 MakeItSpecific 已经做了哪些事。以下全部来自代码实际实现。
 
 ### 2.1 检索层: 相似度阈值过滤 + Rerank + 关键词加权
 
@@ -587,7 +587,7 @@ Reflector（深，包含评分):
 
 一个好的 Agent 循环天然具备抗幻觉能力，因为它的每一步都在做 Observe → Reason → Act。幻觉之所以会产生，是因为某一步的 Reason 不够好。防御幻觉的方法不是加一个「幻觉检测模块」，而是加强每一步的 Reason 能力。
 
-在 MakeItSmooth 的 V3 架构中，这意味着：
+在 MakeItSpecific 的 V3 架构中，这意味着：
 - Planner 做第一层 Reason（需求理解）
 - Executor 做第二层 Reason（工具调用决策）
 - Checkpoint 做第三层 Reason（语义对齐审核）

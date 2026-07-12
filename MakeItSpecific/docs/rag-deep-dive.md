@@ -1288,7 +1288,7 @@ async def bm25_search(self, collection: str, query: str, top_k: int = 10) -> lis
 | `workflow_best_practices.md` | 任务分解、流程设计、风险识别 | 工作流程 |
 | `tech_news.md` | 技术新闻 | 时效性信息 |
 
-**问题**: 三篇全是提示词/工作流相关，和 MakeItSmooth 的三个 Skill 强绑定。但用户的实际问题可能远超这三个领域。
+**问题**: 三篇全是提示词/工作流相关，和 MakeItSpecific 的三个 Skill 强绑定。但用户的实际问题可能远超这三个领域。
 
 ### 10.2 知识库建设的优先级
 

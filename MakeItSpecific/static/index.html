@@ -3,90 +3,75 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MakeItSpecific — 个人工作流增强 Agent</title>
+<title>MakeItSpecific — AI 工作流增强 Agent</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<!-- 粒子背景 -->
-<canvas id="particles"></canvas>
+<div class="app">
 
-<div class="container">
-  <!-- 头部 -->
-  <header>
-    <h1>MakeItSpecific</h1>
-    <p class="tagline">
-      你说大白话，AI 追问补全需求，输出精准提示词和工作计划
-    </p>
-  </header>
+  <!-- 对话区 -->
+  <div class="chat-window" id="chatWindow">
+    <div class="landing" id="landing">
+      <h1>MakeItSpecific</h1>
+      <p class="subtitle">AI 工作流增强助手 — 直接对话，无需选模块</p>
 
-  <!-- 三模块卡片 -->
-  <div class="module-cards">
-    <div class="card" data-module="prompt_refiner" onclick="selectModule('prompt_refiner', this)">
-      <div class="card-icon">✨</div>
-      <div class="card-title">提示词工程</div>
-      <div class="card-desc">大白话 → 追问补全 → 2-3 个优化版提示词，匹配最佳模型</div>
-    </div>
-    <div class="card" data-module="work_arranger" onclick="selectModule('work_arranger', this)">
-      <div class="card-icon">📋</div>
-      <div class="card-title">工作安排交流</div>
-      <div class="card-desc">想法 → 追问 → 结构化工作计划 + 任务拆解 + 时间线</div>
-    </div>
-    <div class="card" data-module="info_retention" onclick="selectModule('info_retention', this)">
-      <div class="card-icon">📁</div>
-      <div class="card-title">信息留存</div>
-      <div class="card-desc">对话 + 文件 → 追问 → 结构化文档，下次可加载继续</div>
-    </div>
-  </div>
+      <!-- 三个功能提示框 -->
+      <div class="feature-cards">
+        <div class="feature-card">
+          <div class="feature-num">01</div>
+          <h3>提示词工程</h3>
+          <p>大白话进来，追问补全后输出 2-3 个优化版提示词，匹配最佳模型。</p>
+          <div class="feature-example">
+            <span>试试看：</span>
+            <code>帮我写一个生成产品文案的提示词，面向年轻人的潮牌服饰</code>
+          </div>
+        </div>
 
-  <!-- 模块选中提示 -->
-  <div class="selected-hint" id="selectedHint">
-    <span class="hint-arrow">👆</span> 请先选择一个功能模块
-  </div>
+        <div class="feature-card">
+          <div class="feature-num">02</div>
+          <h3>工作安排</h3>
+          <p>模糊想法 → 追问目的/范围/时间 → 结构化工作计划 + 任务拆解 + 时间线。</p>
+          <div class="feature-example">
+            <span>试试看：</span>
+            <code>我想用 React 写一个管理后台，大概 50 人使用，三个月搞定</code>
+          </div>
+        </div>
 
-  <!-- 背景输入 -->
-  <div class="bg-input-wrapper" id="bgWrapper" style="display:none">
-    <label class="input-label" for="bgInput">📝 背景与目标（选填）</label>
-    <textarea id="bgInput"
-      placeholder="例如：我是一名前端开发者，正在做电商项目，偏好 React 技术栈"
-      rows="2"></textarea>
-  </div>
-
-  <!-- 对话区域 -->
-  <div class="chat-wrapper" id="chatWrapper">
-    <div class="chat-window" id="chatWindow">
-      <div class="empty-state" id="emptyState">
-        <div class="empty-icon">💬</div>
-        <p>选择一个功能模块，然后输入你的需求</p>
-        <p class="sub">例：「我想用 React 写一个管理后台，大概 50 人使用，三个月搞定」</p>
-      </div>
-    </div>
-
-    <!-- 输入区 -->
-    <div class="input-area" id="inputArea" style="display:none">
-      <div class="status-bar" id="statusBar">
-        <span id="statusIcon">●</span>
-        <span id="statusText">就绪</span>
-        <span class="status-right" id="statusRight"></span>
-      </div>
-      <div class="input-row">
-        <textarea id="userInput" placeholder="描述你要做的事情..." rows="2" onkeydown="handleKey(event)"></textarea>
-        <button id="sendBtn" onclick="sendMessage()">发送</button>
-        <button id="newBtn" onclick="newSession()">新建</button>
+        <div class="feature-card">
+          <div class="feature-num">03</div>
+          <h3>信息留存</h3>
+          <p>对话 + 文件 → 追问格式/用途 → 结构化 Markdown 文档，下次可加载继续。</p>
+          <div class="feature-example">
+            <span>试试看：</span>
+            <code>帮我把这次讨论的技术选型决策整理成文档，方便下次回顾</code>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Footer -->
-  <footer class="page-footer">
-    <a href="/">← 返回首页</a>
-    <span class="footer-dot">·</span>
-    <span class="footer-ver">MakeItSpecific v1.0</span>
-  </footer>
+  <!-- 输入区 -->
+  <div class="input-area" id="inputArea">
+    <div class="input-row">
+      <textarea id="userInput"
+        placeholder="输入你的需求…（Enter 发送，Shift+Enter 换行）"
+        rows="1"
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"></textarea>
+      <button id="sendBtn" onclick="sendMessage()">
+        <span class="send-arrow">→</span>
+      </button>
+    </div>
+    <div class="input-hint">
+      <span class="hint-left" id="statusLine">就绪</span>
+      <span class="hint-right" id="metaLine"></span>
+    </div>
+  </div>
+
 </div>
 
-<script src="js/particles.js"></script>
 <script src="js/chat.js"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-# MakeItSmooth V2 开发进度总结
+# MakeItSpecific V2 开发进度总结
 
 > 2026-07-10
 
@@ -46,7 +46,7 @@
 - `services/rag_service.py` — 重写为 PGVector 后端
 - `memory/session_memory.py` — L2 跨会话记忆
 - `memory/user_profile.py` — L3 用户画像
-- 与 ChatLab 共用 pgvector/pgvector:pg16 容器，独立 database `makeitsmooth`
+- 与 ChatLab 共用 pgvector/pgvector:pg16 容器，独立 database `MakeItSpecific`
 
 ### 工具生态: 7 Tools（含 1 Meta Tool）
 
@@ -220,7 +220,7 @@ Clarify  Execute (ReAct Agent loop, 3-5 tools per Skill)
 | 意图识别 | **独立 Router 节点** — LLM + 规则双通道 |
 | 多 Agent | **Supervisor-Worker** — Phase 1: delegate_task tool (已实现) |
 | 模型降级 | Auto 模式按 priority 选择第一个有 key 的 provider |
-| 数据库 | 独立 database `makeitsmooth` |
+| 数据库 | 独立 database `MakeItSpecific` |
 
 ---
 

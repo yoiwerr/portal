@@ -1,4 +1,4 @@
-# MakeItSmooth — Agent 后端依赖
+# MakeItSpecific — Agent 后端依赖
 # Agent 框架: LangGraph ReAct + LangChain
 # 向量存储: PostgreSQL + PGVector (与 ChatLab 共用)
 # 推理引擎: 多 Provider (DashScope / DeepSeek / OpenAI / Local)

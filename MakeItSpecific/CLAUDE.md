@@ -1,4 +1,4 @@
-# MakeItSmooth — 个人工作流增强 Agent
+# MakeItSpecific — 个人工作流增强 Agent
 
 > AI 助手，通过引导式对话 + 工具调用，把模糊想法变成可执行方案。
 > GitHub: [yoiwerr/portal](https://github.com/yoiwerr/portal) 子项目
@@ -54,10 +54,10 @@ core/graph.py  (LangGraph ReAct Agentic Loop)
 
 ```bash
 cd ~/portal
-make dev    # 拉起 ChatLab + Streamlit + MakeItSmooth 三服务
+make dev    # 拉起 ChatLab + Streamlit + MakeItSpecific 三服务
 
-# 或单独启动 MakeItSmooth
-cd MakeItSmooth
+# 或单独启动 MakeItSpecific
+cd MakeItSpecific
 python app.py
 # → 首页: http://localhost:8000
 # → API 文档: http://localhost:8000/docs
@@ -81,7 +81,7 @@ SANDBOX_ENABLED=false      # Python 沙箱（安全风险，默认关闭）
 ## 运行测试
 
 ```bash
-cd MakeItSmooth
+cd MakeItSpecific
 python -m pytest tests/ -v
 ```
 
@@ -89,7 +89,7 @@ python -m pytest tests/ -v
 
 ```bash
 docker compose up -d
-# MakeItSmooth API 通过 nginx /smooth/ 路由对外暴露
+# MakeItSpecific API 通过 nginx /specific/ 路由对外暴露
 ```
 
 ## 加新 Skill
@@ -118,7 +118,7 @@ tools: [search_knowledge_base, search_web]
 ## 目录结构
 
 ```
-MakeItSmooth/
+MakeItSpecific/
 ├── app.py              ← FastAPI 入口
 ├── config.py           ← 全局配置 (dataclass, 多 provider)
 ├── Dockerfile

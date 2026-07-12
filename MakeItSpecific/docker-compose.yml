@@ -1,7 +1,7 @@
 services:
-  smooth-api:
+  specific-api:
     build: .
-    container_name: smooth-api
+    container_name: specific-api
     command: uvicorn app:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 120
     environment:
       # LLM (多 Provider)
@@ -22,7 +22,7 @@ services:
       SANDBOX_ENABLED: ${SANDBOX_ENABLED:-false}
       MEMORY_ENABLED: ${MEMORY_ENABLED:-true}
     volumes:
-      - smoothdata:/app/data
+      - specificdata:/app/data
     depends_on:
       postgres:
         condition: service_healthy
@@ -39,7 +39,7 @@ services:
       - portal-net
 
 volumes:
-  smoothdata:
+  specificdata:
 
 networks:
   portal-net:

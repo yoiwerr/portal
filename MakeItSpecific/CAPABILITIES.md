@@ -1,4 +1,4 @@
-# MakeItSmooth 企业级 Agent 能力清单
+# MakeItSpecific 企业级 Agent 能力清单
 
 > 注：✅ 已实现  🔧 部分实现  ❌ 待开发
 
