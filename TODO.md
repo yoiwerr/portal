@@ -102,14 +102,14 @@ docker compose ps
 
 curl http://localhost               # 首页 HTML
 curl http://localhost/api/v1/imported_files  # ChatLab API
-curl http://localhost/smooth/api/health      # MakeItSmooth API
+curl http://localhost/smooth/api/health      # MakeItSpecific API
 ```
 
 浏览器访问 `http://<服务器公网IP>`
 
 - [ ] 首页正常
 - [ ] ChatLab 正常
-- [ ] MakeItSmooth 正常
+- [ ] MakeItSpecific 正常
 - [ ] API 正常
 
 ---
@@ -120,7 +120,7 @@ curl http://localhost/smooth/api/health      # MakeItSmooth API
 |------|------|
 | 首页 | `http://<IP>` |
 | ChatLab | `http://<IP>/chatlab` |
-| MakeItSmooth | `http://<IP>/smooth` |
+| MakeItSpecific | `http://<IP>/smooth` |
 | ChatLab API 文档 | `http://<IP>/api/docs` |
 | Smooth API 文档 | `http://<IP>/smooth/docs` |
 
@@ -133,9 +133,9 @@ cd ~/portal
 
 docker compose logs -f              # 实时日志（全部服务）
 docker compose logs api             # 只看 ChatLab API
-docker compose logs smooth-api      # 只看 MakeItSmooth API
+docker compose logs smooth-api      # 只看 MakeItSpecific API
 docker compose restart api          # 重启 ChatLab API
-docker compose restart smooth-api   # 重启 MakeItSmooth
+docker compose restart smooth-api   # 重启 MakeItSpecific
 docker compose down                 # 停止全部
 docker compose up -d --build        # 重建启动全部
 ```
@@ -156,6 +156,6 @@ docker compose up -d --build        # 重建启动全部
 # ChatLab PostgreSQL
 docker compose exec postgres pg_dump -U postgres chatdemopg > backup_chatlab_$(date +%Y%m%d).sql
 
-# MakeItSmooth SQLite + ChromaDB (在 smoothdata volume 中)
+# MakeItSpecific SQLite + ChromaDB (在 smoothdata volume 中)
 docker compose exec smooth-api tar czf - /app/data > backup_smooth_$(date +%Y%m%d).tar.gz
 ```

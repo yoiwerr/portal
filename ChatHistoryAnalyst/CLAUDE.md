@@ -229,7 +229,7 @@ return Model.model_validate_json(clean)
 
 ```bash
 cd ~/portal
-make dev                           # 一键: FastAPI (:8000) + MakeItSmooth (:8001)
+make dev                           # 一键: FastAPI (:8000) + MakeItSpecific (:8001)
 # ChatLab FastAPI 会自动启动。
 # 或手动:
 cd ~/portal/ChatHistoryAnalyst

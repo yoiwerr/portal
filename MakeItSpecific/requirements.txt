@@ -1,0 +1,26 @@
+# MakeItSmooth — Agent 后端依赖
+# Agent 框架: LangGraph ReAct + LangChain
+# 向量存储: PostgreSQL + PGVector (与 ChatLab 共用)
+# 推理引擎: 多 Provider (DashScope / DeepSeek / OpenAI / Local)
+
+# Web Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+sse-starlette>=2.0
+
+# 数据存储
+psycopg>=3.2
+httpx>=0.25.0
+pydantic>=2.0
+python-dotenv>=1.0.0
+
+# LLM & Embedding
+dashscope>=1.20
+langchain>=0.3.0
+langgraph>=0.2.0
+langchain-openai>=0.3.0
+langchain-community>=0.3.0
+
+# 测试
+pytest>=7.0
+pytest-asyncio>=0.21.0

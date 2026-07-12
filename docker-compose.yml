@@ -1,6 +1,6 @@
 include:
   - ChatHistoryAnalyst/docker-compose.yml
-  - MakeItSmooth/docker-compose.yml
+  - MakeItSpecific/docker-compose.yml
 
 services:
   nginx:
@@ -17,5 +17,5 @@ services:
       - /etc/letsencrypt/archive:/etc/letsencrypt/archive:ro
     depends_on:
       - api
-      - smooth-api
+      - specific-api
     restart: unless-stopped

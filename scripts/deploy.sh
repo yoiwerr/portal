@@ -17,7 +17,7 @@ fi
 if [ ! -f .env ]; then
     echo ""
     echo "[SETUP] Creating .env..."
-    read -rp "  DashScope API Key (ChatLab + MakeItSmooth 共用): " DASHSCOPE_KEY
+    read -rp "  DashScope API Key (ChatLab + MakeItSpecific 共用): " DASHSCOPE_KEY
     read -rp "  Tavily API Key: " TAVILY_KEY
     read -rp "  LangSmith API Key (Enter to skip): " LANGSMITH_KEY
     read -rp "  PostgreSQL Password: " PG_PASS
@@ -62,7 +62,7 @@ echo " Deployment complete!"
 echo ""
 echo " Portal:       http://<IP>"
 echo " ChatLab:      http://<IP>/chatlab"
-echo " MakeItSmooth: http://<IP>/smooth"
+echo " MakeItSpecific: http://<IP>/smooth"
 echo " API Docs:     http://<IP>/api/docs"
 echo ""
 echo " docker compose logs -f       # tail logs"
