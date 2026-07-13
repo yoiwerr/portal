@@ -26,3 +26,7 @@ pgdata/
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Debug logs
+*.log
+inf.txt
