@@ -1,14 +1,21 @@
-MakeItSpecific — AI 工作流增强 Agent                                         2026.05 – 至今
-独立设计并开发的对话式工作流 Agent，将用户模糊需求通过自动意图识别、追问补全、知识检索与工具调用转化为结构化可执行方案。
-
-整体架构：基于 LangGraph 构建多节点有状态决策流，实现需求完整性自动评估（不足时触发追问）、多轮对话状态持久化与自动回退重试，确保从模糊输入到结构化输出的稳定收敛。
-
-三层记忆系统：设计 L1 原始窗口 + L2 滚动摘要 + L3 语义事实三层互补的上下文管理机制，解决长对话中信息遗忘与上下文漂移。L3 支持跨会话提取用户偏好与历史决策并在新对话中自动召回。含主题切换检测，话题变化时自动重置记忆。
-
-RAG 检索管道：构建 Dense + BM25 双路混合检索链路，通过 RRF 融合与 Rerank 精排实现领域知识的精准召回与上下文注入。实现语义分块器，基于相邻句子 embedding 相似度自动识别文档断点，保留段落语义完整性。
-
-意图识别与工作记忆：LLM + 规则双通道意图分类，覆盖 6 类场景自动路由。已确认意图与需求维度锁定为工作记忆跨轮注入，防止多轮对话中方向漂移与信息丢失。
-
-审查监管：执行后自动触发语义方向与输出质量双重校验，检测偏离时自动修正并重试。全链路 LLM 输出含多层降级解析，模型异常时流程不中断。
-
-工具边界裁定：基于 LLM 与工具的实际能力边界，为每类场景设定差异化工具子集与调用权限，避免模型在不匹配场景下越权使用或选择困难。制定工具与上下文工程边界规范文档，约束 Agent 行为边界与安全策略。
+root@iZ2zeex1aq4wc994aznivfZ:~/portal# docker compose logs api --tail=20
+chalab-api  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+chalab-api  |   File "/usr/local/lib/python3.12/site-packages/uvicorn/importer.py", line 19, in import_from_string
+chalab-api  |     module = importlib.import_module(module_str)
+chalab-api  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+chalab-api  |   File "/usr/local/lib/python3.12/importlib/__init__.py", line 90, in import_module
+chalab-api  |     return _bootstrap._gcd_import(name[level:], package, level)
+chalab-api  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+chalab-api  |   File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
+chalab-api  |   File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+chalab-api  |   File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+chalab-api  |   File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+chalab-api  |   File "<frozen importlib._bootstrap_external>", line 999, in exec_module
+chalab-api  |   File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
+chalab-api  |   File "/app/src/main.py", line 12, in <module>
+chalab-api  |     from src.skills.skill01_imitate import execute_imitate_skill
+chalab-api  |   File "/app/src/skills/skill01_imitate.py", line 4, in <module>
+chalab-api  |     from src.core_llm import base_llm
+chalab-api  |   File "/app/src/core_llm.py", line 13, in <module>
+chalab-api  |     raise ValueError("未在环境变量中找到 DEEPSEEK_API_KEY，请检查 .env 文件。")
+chalab-api  | ValueError: 未在环境变量中找到 DEEPSEEK_API_KEY，请检查 .env 文件。
