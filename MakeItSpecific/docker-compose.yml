@@ -15,9 +15,6 @@ services:
       DB_NAME: makeitspecific
       DB_USER: postgres
       PGSQLPASSWORD: ${PGSQLPASSWORD}
-      # Search
-      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
-      SEARCH_API_KEY: ${TAVILY_API_KEY:-}
       # Agent
       SANDBOX_ENABLED: ${SANDBOX_ENABLED:-false}
       MEMORY_ENABLED: ${MEMORY_ENABLED:-true}

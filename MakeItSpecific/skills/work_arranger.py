@@ -12,7 +12,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from skills.base import BaseSkill, SkillContext
 from prompts.templates import format_expressed_dimensions
 from prompts.system_prompts import WORK_ARRANGER_SYSTEM
-from tools.search import ALL_TOOLS
+from tools import get_tools_for_skill
 
 
 class WorkArranger(BaseSkill):
@@ -31,8 +31,7 @@ class WorkArranger(BaseSkill):
         """
         使用 LangChain Agent 生成结构化工作计划。
 
-        Agent 可以调用 search_knowledge_base 获取项目管理最佳实践，
-        调用 search_chat_history 参考历史项目偏好。
+        Agent 可以调用 search_knowledge_base 获取项目管理最佳实践。
         """
         dims_text = format_expressed_dimensions(context.expressed_dimensions)
 
@@ -54,7 +53,7 @@ class WorkArranger(BaseSkill):
 
         agent = create_agent(
             model=model,
-            tools=ALL_TOOLS,
+            tools=get_tools_for_skill(self.name),
             system_prompt=WORK_ARRANGER_SYSTEM,
         )
         result = await agent.ainvoke({

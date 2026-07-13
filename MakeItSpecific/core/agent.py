@@ -17,7 +17,7 @@ from core.graph import create_graph
 from core.context_engine import ContextEngine
 from services.rag_service import RAGService
 from services.session_store import SessionStore
-from tools.search import set_tool_services
+from tools import inject_services
 
 logger = logging.getLogger(__name__)
 
@@ -34,14 +34,13 @@ class Agent:
         # vector_store + embedding_fn 在 _init_memory 后补注入（依赖 rag 初始化）
         self.context_engine = ContextEngine(model=model)
 
-        # ── 注入模型到 delegate tool ──
-        from tools.delegate import set_delegate_model
-        set_delegate_model(model, config)
-
         # ── 记忆系统 ──
         self.session_memory = None
         self.user_profile = None
         self._init_memory()
+
+        # ── 工具服务注入（一次性，不需要每轮对话重复）──
+        inject_services(rag_service=rag_service, config=config)
 
         # ── Skills ──
         from skills.prompt_refiner import PromptRefiner
@@ -106,9 +105,6 @@ class Agent:
             session_id = self.sessions.create_session(
                 module=module, background=background,
             )
-
-        set_tool_services(rag_service=self.rag, session_store=self.sessions,
-                          session_id=session_id, config=self.config)
 
         self.sessions.save_message(session_id=session_id, role="user",
                                    content=message, msg_type="input")
@@ -189,9 +185,6 @@ class Agent:
             session_id = self.sessions.create_session(
                 module=module, background=background,
             )
-
-        set_tool_services(rag_service=self.rag, session_store=self.sessions,
-                          session_id=session_id, config=self.config)
 
         self.sessions.save_message(session_id=session_id, role="user",
                                    content=message, msg_type="input")

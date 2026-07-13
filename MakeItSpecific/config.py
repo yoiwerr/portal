@@ -48,8 +48,6 @@ class Config:
     rerank_model: str = "qwen3-rerank"
     rerank_top_k: int = 5
     rerank_coarse_k: int = 20
-    search_api_key: str = ""
-    search_api_url: str = ""
     memory_enabled: bool = True
     sandbox_enabled: bool = False
     sandbox_timeout: float = 30.0
@@ -81,7 +79,7 @@ class Config:
         for a in ("api_port","api_host","llm_provider","llm_model",
                   "pg_host","pg_port","pg_database","pg_user","pg_password",
                   "deepseek_base_url","deepseek_model","openai_base_url","openai_model",
-                  "local_llm_url","search_api_url","rerank_model"):
+                  "local_llm_url","rerank_model"):
             ev = os.getenv(a.upper(), "")
             if ev and hasattr(c, a): setattr(c, a, type(getattr(c, a))(ev))
         for a in ("llm_temperature","llm_timeout","max_tool_rounds","agent_timeout",
@@ -95,7 +93,6 @@ class Config:
         c.dashscope_api_key = os.getenv("DASHSCOPE_API_KEY","")
         c.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY","")
         c.openai_api_key = os.getenv("OPENAI_API_KEY","")
-        c.search_api_key = os.getenv("SEARCH_API_KEY","") or os.getenv("TAVILY_API_KEY","")
         c.pg_password = os.getenv("PGSQLPASSWORD","")
         c.memory_enabled = os.getenv("MEMORY_ENABLED","true").lower() != "false"
         c.sandbox_enabled = os.getenv("SANDBOX_ENABLED","false").lower() == "true"

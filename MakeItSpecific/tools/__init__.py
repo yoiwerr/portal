@@ -1,97 +1,85 @@
 """
-MakeItSpecific 工具注册表 — 10 个工具。
+MakeItSpecific 工具注册表 — 4 个工具。
 
-信息检索 (4):
-  - search_knowledge_base   PGVector 向量检索  [P0 优先]
-  - search_web              Tavily 联网搜索    [P1 本地不够用]
-  - fetch_url               抓取网页内容        [P2 深入阅读]
-  - search_chat_history     对话历史检索        [P3 按需]
+每个工具有明确的责任边界，无功能重叠：
 
-代码执行 (1):
-  - python_exec             沙箱 Python        [按需，需 SANDBOX_ENABLED]
+  知识库 (2):
+    search_knowledge_base    — 读：PGVector 向量检索领域知识    [P0 必须]
+    add_to_knowledge_base    — 写：对话知识持久化到向量库       [用户触发]
 
-知识管理 (2):
-  - add_to_knowledge_base   对话知识写入向量库   [按需]
-  - list_knowledge_sources  知识库状态查询      [按需]
+  代码执行 (1):
+    python_exec              — 沙箱 Python：精确计算/格式转换    [按需]
 
-系统感知 (1):
-  - run_shell_preview       只读 Shell          [按需]
-
-Multi-Agent (1):
-  - delegate_task           委托子 Agent        [P4 兜底，成本高]
-
-文本处理 (3):
-  - parse_text              结构化提取          [按需，规则引擎]
-  - compare_texts           文本对比            [按需，规则引擎]
-  - summarize_text          文本摘要            [按需，规则引擎，非 LLM]
+  系统感知 (1):
+    run_shell_preview        — 只读 Shell：查看项目结构/文件     [按需]
 
 调用优先级链:
-  search_kb(P0) → search_web(P1) → fetch_url(P2) → delegate_task(P4 兜底)
+  search_knowledge_base (P0 — 涉及技术选型/工具推荐/方法论时必调)
+    → python_exec (需要精确计算/格式转换时)
+      → run_shell_preview (需要看文件系统时)
+        → add_to_knowledge_base (用户要求保存时)
+
+与旧版的差异:
+  删除 search_web         — 不再用 Apikey 联网搜，RAG + 模型自身能力覆盖
+  删除 fetch_url          — 同上，不发起外网 HTTP 请求
+  删除 search_chat_history — ContextEngine (L1+L2+L3) 自动注入历史，无需手动检索
+  删除 delegate_task      — 子 Agent 只有 search_kb 无额外价值，executor 自身已覆盖
+  删除 parse_text         — 规则引擎，LLM 原生结构化提取更好
+  删除 compare_texts      — 规则引擎行级 diff，LLM 语义对比更好
+  删除 summarize_text     — 规则引擎截断器，LLM 原生摘要更好
+  删除 list_knowledge_sources — KB 统计是系统运维操作，不是对话工具
 
 用法:
     from tools import ALL_TOOLS, get_tools_for_skill
-    agent = create_react_agent(model, tools=ALL_TOOLS)
+    agent = create_react_agent(model, tools=get_tools_for_skill("prompt_refiner"))
 """
 
-from tools.search import search_knowledge_base, search_web, fetch_url, search_chat_history
+from tools.search import search_knowledge_base
 from tools.code import python_exec
-from tools.knowledge import add_to_knowledge_base, list_knowledge_sources
+from tools.knowledge import add_to_knowledge_base
 from tools.shell import run_shell_preview
-from tools.delegate import delegate_task
-from tools.text import parse_text, compare_texts, summarize_text
 
+# ── 全局工具列表（4 个）──
 ALL_TOOLS = [
-    # P0 — 信息检索（优先使用）
     search_knowledge_base,
-    search_web,
-    fetch_url,
-    search_chat_history,
-    # 代码执行
     python_exec,
-    # 知识管理
     add_to_knowledge_base,
-    list_knowledge_sources,
-    # 系统感知
     run_shell_preview,
-    # Multi-Agent
-    delegate_task,
-    # 文本处理（规则引擎）
-    parse_text,
-    compare_texts,
-    summarize_text,
 ]
 
-# 按 Skill 推荐的子集（避免给模型太多选择）
+# ── 按 Skill 推荐的工具子集 ──
+# 每个 Skill 只暴露真正需要的工具，减少模型选择负担。
 SKILL_TOOL_MAP = {
     "prompt_refiner": [
-        search_knowledge_base, search_web, fetch_url,
-        add_to_knowledge_base, parse_text, compare_texts,
-        delegate_task,
+        search_knowledge_base,
+        add_to_knowledge_base,
     ],
-    "work_arranger":  [
-        search_knowledge_base, search_web, fetch_url,
-        add_to_knowledge_base, run_shell_preview,
-        parse_text, delegate_task,
+    "work_arranger": [
+        search_knowledge_base,
+        add_to_knowledge_base,
+        run_shell_preview,
     ],
     "info_retention": [
-        add_to_knowledge_base, list_knowledge_sources,
-        summarize_text, parse_text,
-    ],
-    "research":       [
-        search_web, fetch_url, search_knowledge_base,
-        add_to_knowledge_base, summarize_text, parse_text,
-        delegate_task,
-    ],
-    "code_review":    [
-        run_shell_preview, search_knowledge_base, search_web,
-        compare_texts, parse_text,
-    ],
-    "data_analysis":  [
-        python_exec, search_knowledge_base,
-        parse_text, summarize_text,
+        add_to_knowledge_base,
+        search_knowledge_base,
     ],
 }
 
 
+def inject_services(rag_service=None, config=None):
+    """
+    统一服务注入 — 由 Agent.__init__ 调用一次即可。
+    将 RAG 服务和配置注入到所有需要它们的工具模块。
+    """
+    import tools.search as search_mod
+    import tools.knowledge as knowledge_mod
+    import tools.code as code_mod
+
+    search_mod._rag_service = rag_service
+    knowledge_mod._rag_service = rag_service
+    code_mod._config = config
+
+
 def get_tools_for_skill(skill_name: str):
+    """返回指定 Skill 的工具子集。未注册的 Skill 返回全部工具。"""
     return SKILL_TOOL_MAP.get(skill_name, ALL_TOOLS)

@@ -12,7 +12,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from skills.base import BaseSkill, SkillContext
 from prompts.templates import format_expressed_dimensions
 from prompts.system_prompts import INFO_RETENTION_SYSTEM
-from tools.search import ALL_TOOLS
+from tools import get_tools_for_skill
 
 
 class InfoRetention(BaseSkill):
@@ -31,8 +31,8 @@ class InfoRetention(BaseSkill):
         """
         使用 LangChain Agent 整理并生成留存文档。
 
-        Agent 可以调用 search_chat_history 获取完整对话上下文，
-        调用 search_knowledge_base 获取相关知识。
+        Agent 可以调用 search_knowledge_base 获取相关知识，
+        调用 add_to_knowledge_base 留存整理后的文档。
         """
         dims_text = format_expressed_dimensions(context.expressed_dimensions)
 
@@ -57,7 +57,7 @@ class InfoRetention(BaseSkill):
 
         agent = create_agent(
             model=model,
-            tools=ALL_TOOLS,
+            tools=get_tools_for_skill(self.name),
             system_prompt=INFO_RETENTION_SYSTEM,
         )
         result = await agent.ainvoke({

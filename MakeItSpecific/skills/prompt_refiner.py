@@ -13,7 +13,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from skills.base import BaseSkill, SkillContext
 from prompts.templates import format_expressed_dimensions
 from prompts.system_prompts import PROMPT_REFINER_SYSTEM
-from tools.search import ALL_TOOLS
+from tools import get_tools_for_skill
 
 
 class PromptRefiner(BaseSkill):
@@ -31,8 +31,7 @@ class PromptRefiner(BaseSkill):
         """
         使用 LangChain Agent 生成优化后的提示词。
 
-        Agent 可以调用 search_knowledge_base 获取提示词最佳实践，
-        也可以调用 search_chat_history 参考历史偏好。
+        Agent 可以调用 search_knowledge_base 获取提示词最佳实践。
         """
         dims_text = format_expressed_dimensions(context.expressed_dimensions)
 
@@ -54,7 +53,7 @@ class PromptRefiner(BaseSkill):
 
         agent = create_agent(
             model=model,
-            tools=ALL_TOOLS,
+            tools=get_tools_for_skill(self.name),
             system_prompt=PROMPT_REFINER_SYSTEM,
         )
         result = await agent.ainvoke({
