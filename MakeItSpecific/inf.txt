@@ -1,21 +1,89 @@
-root@iZ2zeex1aq4wc994aznivfZ:~/portal# docker compose logs api --tail=20
-chalab-api  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-chalab-api  |   File "/usr/local/lib/python3.12/site-packages/uvicorn/importer.py", line 19, in import_from_string
-chalab-api  |     module = importlib.import_module(module_str)
-chalab-api  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-chalab-api  |   File "/usr/local/lib/python3.12/importlib/__init__.py", line 90, in import_module
-chalab-api  |     return _bootstrap._gcd_import(name[level:], package, level)
-chalab-api  |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-chalab-api  |   File "<frozen importlib._bootstrap>", line 1387, in _gcd_import
-chalab-api  |   File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
-chalab-api  |   File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
-chalab-api  |   File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
-chalab-api  |   File "<frozen importlib._bootstrap_external>", line 999, in exec_module
-chalab-api  |   File "<frozen importlib._bootstrap>", line 488, in _call_with_frames_removed
-chalab-api  |   File "/app/src/main.py", line 12, in <module>
-chalab-api  |     from src.skills.skill01_imitate import execute_imitate_skill
-chalab-api  |   File "/app/src/skills/skill01_imitate.py", line 4, in <module>
-chalab-api  |     from src.core_llm import base_llm
-chalab-api  |   File "/app/src/core_llm.py", line 13, in <module>
-chalab-api  |     raise ValueError("未在环境变量中找到 DEEPSEEK_API_KEY，请检查 .env 文件。")
-chalab-api  | ValueError: 未在环境变量中找到 DEEPSEEK_API_KEY，请检查 .env 文件。
+root@iZ2zeex1aq4wc994aznivfZ:~/portal# git pull && ./scripts/update.sh --rebuild
+Already up to date.
+========================================
+ Portal — 更新
+ 2026-07-13 15:16:37
+========================================
+工作目录: /root/portal
+分支: master | 提交: 8566413
+[WARN] 本地落后于远程，请先 git pull
+
+是否现在执行 git pull? [Y/n] Y
+Already up to date.
+[OK] git pull 完成
+→ --rebuild: 强制全部重建
+
+==== 构建 & 重启 ====
+→ 重建全部服务
+[+] Building 4.7s (25/25) FINISHED
+ => [internal] load local bake definitions                                                                         0.0s
+ => => reading from stdin 1.38kB                                                                                   0.0s
+ => [streamlit internal] load build definition from Dockerfile                                                     0.0s
+ => => transferring dockerfile: 951B                                                                               0.0s
+ => [specific-api internal] load build definition from Dockerfile                                                  0.0s
+ => => transferring dockerfile: 929B                                                                               0.0s
+ => [api internal] load metadata for docker.io/library/python:3.12-slim                                            0.2s
+ => [api internal] load .dockerignore                                                                              0.0s
+ => => transferring context: 140B                                                                                  0.0s
+ => [specific-api internal] load .dockerignore                                                                     0.0s
+ => => transferring context: 2B                                                                                    0.0s
+ => [streamlit 1/7] FROM docker.io/library/python:3.12-slim@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c314  0.1s
+ => => resolve docker.io/library/python:3.12-slim@sha256:423ed6ab25b1921a477529254bfeeabf5855151dc2c3141699a1bfc8  0.1s
+ => [specific-api internal] load build context                                                                     0.0s
+ => => transferring context: 5.10kB                                                                                0.0s
+ => [streamlit internal] load build context                                                                        0.1s
+ => => transferring context: 3.29kB                                                                                0.0s
+ => CACHED [specific-api 2/7] WORKDIR /app                                                                         0.0s
+ => CACHED [streamlit 3/6] RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sour  0.0s
+ => CACHED [streamlit 4/6] RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trusted-ho  0.0s
+ => CACHED [streamlit 5/6] RUN uv pip install --system --no-cache-dir     -i https://mirrors.aliyun.com/pypi/simp  0.0s
+ => [streamlit 6/6] COPY . .                                                                                       0.3s
+ => CACHED [specific-api 3/7] RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.s  0.0s
+ => CACHED [specific-api 4/7] RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trusted  0.0s
+ => CACHED [specific-api 5/7] RUN uv pip install --system --no-cache-dir     -i https://mirrors.aliyun.com/pypi/s  0.0s
+ => [specific-api 6/7] COPY . .                                                                                    0.3s
+ => [api] exporting to image                                                                                       3.1s
+ => => exporting layers                                                                                            1.3s
+ => => exporting manifest sha256:ed0a6879011baee025b984ee490dd077803c6b5eaa6b7ee6ccd03b7a92e42872                  0.1s
+ => => exporting config sha256:e37f91ec121c9e6a96ed41696e02ec8751e0fa2242762b2b98e6e676ebc75cab                    0.1s
+ => => exporting attestation manifest sha256:a7d2a05d24033935a79c406e64712475c2468c342a4cad47e6e687d3aa7d6215      0.2s
+ => => exporting manifest list sha256:60c1689fba9e50d45db78bd212564fa259f0af47992532b5ff971f3d8b03a7a7             0.1s
+ => => naming to docker.io/library/portal-api:latest                                                               0.0s
+ => => unpacking to docker.io/library/portal-api:latest                                                            0.5s
+ => [streamlit] exporting to image                                                                                 3.1s
+ => => exporting layers                                                                                            1.3s
+ => => exporting manifest sha256:a61bcafddf27013c820a4ae2e70d0416e0994988c833ea9ee19063903b3df3e7                  0.1s
+ => => exporting config sha256:d60030097ca63c348d1f38231bce1ea181685f7c2929279f109b0f97f959b349                    0.1s
+ => => exporting attestation manifest sha256:6f9938d968642ee1051ef7307fa3de133fe294d106c3ef9a12ce3fd863497097      0.2s
+ => => exporting manifest list sha256:012fba9dcd2ffac46a0de4edae6bf68b1aa1c728792e296601442df44483f2fb             0.0s
+ => => naming to docker.io/library/portal-streamlit:latest                                                         0.0s
+ => => unpacking to docker.io/library/portal-streamlit:latest                                                      0.5s
+ => [specific-api 7/7] RUN mkdir -p /app/data && chmod 777 /app/data                                               1.8s
+ => [specific-api] exporting to image                                                                              1.2s
+ => => exporting layers                                                                                            0.8s
+ => => exporting manifest sha256:5ee38199b9e06904c9dcec7f2fe409d9b2dfe9e6cb88fd1686405c7d9bde9b05                  0.0s
+ => => exporting config sha256:19cfc222581798f8e2e243584e812a18d5c3c44f1740fddb8ac22ad794351907                    0.0s
+ => => exporting attestation manifest sha256:647eb8a093503f6639b2c4db3061b2c4a8ef8e580d0386940b8d1ba6c9d10ba2      0.1s
+ => => exporting manifest list sha256:aa4b56721d04578e1376364d80fa5c727a7befa1bdce2a7d6af0b68901a077e9             0.0s
+ => => naming to docker.io/library/portal-specific-api:latest                                                      0.0s
+ => => unpacking to docker.io/library/portal-specific-api:latest                                                   0.1s
+ => [api] resolving provenance for metadata file                                                                   0.1s
+ => [streamlit] resolving provenance for metadata file                                                             0.0s
+ => [specific-api] resolving provenance for metadata file                                                          0.0s
+[+] build 3/3
+ ✔ Image portal-streamlit    Built                                                                                  4.8s
+ ✔ Image portal-specific-api Built                                                                                  4.8s
+ ✔ Image portal-api          Built                                                                                  4.8s
+WARN[0000] Found orphan containers ([smooth-api]) for this project. If you removed or renamed this service in your compose file, you can run this command with the --remove-orphans flag to clean it up.
+[+] up 5/5
+ ✔ Container chalab-postgres  Healthy                                                                               8.7s
+ ✔ Container chalab-streamlit Started                                                                               8.8s
+ ✔ Container chalab-api       Started                                                                               9.5s
+ ✔ Container specific-api     Started                                                                               9.2s
+ ✔ Container portal-nginx     Started                                                                              11.1s
+
+==== 清理旧镜像 ====
+Total reclaimed space: 0B
+
+==== 健康检查 ====
+[WARN] ChatLab API 未就绪 (http://localhost/api/health)
