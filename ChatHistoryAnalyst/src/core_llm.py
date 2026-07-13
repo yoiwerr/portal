@@ -3,9 +3,8 @@ import os
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 
-# 先加载当前目录的 .env，再加载上级 portal/.env（后者覆盖前者）
-load_dotenv()
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"), override=True)
+# portal/.env 统一管理所有环境变量
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
 
 api_key = os.getenv("DEEPSEEK_API_KEY")
 

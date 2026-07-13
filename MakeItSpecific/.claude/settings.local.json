@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"\\\\\\\\wsl.localhost\\\\Ubuntu\\\\home\\\\yoiwerr\\\\portal\\\\MakeItSpecific\")",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(python -m pytest tests/test_graph.py -v)",
+      "Bash(python -c ' *)",
+      "Bash(python -m pytest tests/test_graph.py -q)",
+      "Bash(wc *)",
+      "Read(//mnt/c/Users/yoiwerr/portal/**)",
+      "Read(///wsl.localhost/Ubuntu/home/yoiwerr/portal/**)",
+      "Read(///wsl.localhost/Ubuntu/home/yoiwerr/portal/MakeItSpecific/**)",
+      "Bash(git -C //wsl.localhost/Ubuntu/home/yoiwerr/portal/MakeItSpecific checkout -- skills/resume_generator.py)",
+      "Bash(rm -f //wsl.localhost/Ubuntu/home/yoiwerr/portal/MakeItSpecific/skills/resume_generator.py)",
+      "Bash(git -C //wsl.localhost/Ubuntu/home/yoiwerr/portal/MakeItSpecific checkout -- prompts/system_prompts.py prompts/templates.py)",
+      "Read(///wsl.localhost/Ubuntu//**)",
+      "Read(///wsl.localhost/Ubuntu/mnt/**)"
+    ]
+  }
+}

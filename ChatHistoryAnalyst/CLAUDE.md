@@ -124,7 +124,7 @@ FastAPI (:8000) ── src/main.py
 | File | Role | 修改频率 |
 |------|------|----------|
 | `src/main.py` | FastAPI app — 8 endpoints + 首页挂载 + /chatlab 重定向。仅支持 txt/json/md 纯文本上传 | 中 |
-| `src/core_llm.py` | `base_llm` (deepseek-chat via ChatOpenAI)。同时加载 ChatLab/.env 和 portal/.env | 低 |
+| `src/core_llm.py` | `base_llm` (deepseek-chat via ChatOpenAI)。统一加载 portal/.env | 低 |
 | `src/schemas.py` | Pydantic: ChatMessage, AnalysisRequest, EmotionIndices(6项指数), RelationProgress, RelationDynamics, ActionSuggestion, ImportRequest, FileUploadResponse | 中 |
 | `src/context_engineer.py` | 消息预处理 pipeline: engineer_chat_context() 输出纯结构化指标（无语义解读）+ build_message_index_docs() | 高 |
 | `src/tools.py` | 4 个 LangChain `@tool` + RELEVANCE_THRESHOLD=0.3。search_chat_context 返回原始数据 | 中 |
@@ -139,7 +139,7 @@ FastAPI (:8000) ── src/main.py
 | `pyproject.toml` | Python 依赖 | 低 |
 | `docker-compose.yml` | postgres + api + streamlit | 低 |
 | `Dockerfile` | Python 3.12 镜像 | 低 |
-| `.env.example` | 密钥模板 (DEEPSEEK_API_KEY, DASHSCOPE_API_KEY, PGSQLPASSWORD, TAVILY_API_KEY, DB_HOST=localhost) | 低 |
+| `../.env.example` | 密钥模板（portal 层统一管理，含 DEEPSEEK_API_KEY, DASHSCOPE_API_KEY, PGSQLPASSWORD, TAVILY_API_KEY, DB_HOST） | 低 |
 
 ## API 端点
 
@@ -223,7 +223,7 @@ return Model.model_validate_json(clean)
 | `DB_HOST` | PostgreSQL 地址 | `localhost` |
 | `DB_PORT` | PostgreSQL 端口 | `5432` |
 
-> `.env` 加载顺序: ChatLab/`.env` → portal/`.env`（后者 override）
+> `.env` 统一由 `portal/.env` 管理（所有子项目共用）
 
 ## 本地开发
 
@@ -243,7 +243,7 @@ uv run streamlit run front/frontend.py       # 终端 2
 
 ```bash
 uv sync                              # 装依赖
-cp .env.example .env && vim .env     # 填 API 密钥 (DEEPSEEK_API_KEY, PGSQLPASSWORD, TAVILY_API_KEY)
+cp ../.env.example ../.env && vim ../.env     # 填 API 密钥 (DEEPSEEK_API_KEY, PGSQLPASSWORD, TAVILY_API_KEY)
 uv run python import_knowledge.py    # 导入知识库（需 PostgreSQL + pgvector）
 ```
 
@@ -273,7 +273,7 @@ uv run python import_knowledge.py    # 导入知识库（需 PostgreSQL + pgvect
 - 查看 context engineering 日志: 搜索 `Context Engineering`
 - FastAPI 错误日志: 搜索 `Error in xxx skill`
 - 维度不匹配: 调 `DELETE /api/v1/clear_vector_store` 后重新导入
-- LLM 调用失败: 检查 `.env` 中 `DEEPSEEK_API_KEY` 是否正确；确认加载了 portal/.env（`run_dev.py` 会 cd 到 ChatLab/）
+- LLM 调用失败: 检查 `portal/.env` 中 `DEEPSEEK_API_KEY` 是否正确
 
 ## Session 记录
 
@@ -288,7 +288,7 @@ uv run python import_knowledge.py    # 导入知识库（需 PostgreSQL + pgvect
 7. **容器尺寸放大** — 手动输入 110→250px，预览容器 250→350px，expander min-height 400px
 8. **移除记忆库 UI** — 删除"存入长期记忆库"checkbox 及相关 session state、状态提示
 9. **导入格式指南** — 新增 `docs/如何导入正确格式.md` + 前端内嵌完整格式说明 + 万能 AI 提示词模板
-10. **环境变量文档化** — `.env` 加载链（ChatLab/ → portal/ override）在 core_llm.py 中实现
+10. **环境变量文档化** — `.env` 统一由 portal 层管理
 
 ### 2026-07-09 (morning) — Context Engineering + 指数化重构
 
@@ -305,7 +305,7 @@ uv run python import_knowledge.py    # 导入知识库（需 PostgreSQL + pgvect
 2. 删除 ChatHistoryAnalyst/.git，统一为 portal/ 大仓 → GitHub [yoiwerr/portal](https://github.com/yoiwerr/portal)
 3. `src/main.py` 新增 `/` 首页 + `/css` 静态挂载 + `/chatlab` → localhost:8501 重定向
 4. `make dev` 本地一键启动
-5. `.env.example` DB_HOST 默认 localhost
+5. `../.env.example` 统一由 portal 层管理
 
 ### 2026-06-09
 
