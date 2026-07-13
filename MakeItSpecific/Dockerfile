@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple/ --trus
 RUN uv pip install --system --no-cache-dir \
     -i https://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com \
     fastapi uvicorn sse-starlette \
-    psycopg psycopg-binary pgvector httpx pydantic python-dotenv \
+    psycopg psycopg-binary pgvector httpx aiohttp pydantic python-dotenv \
     dashscope langchain langchain-community langchain-openai langgraph \
     pytest pytest-asyncio
 

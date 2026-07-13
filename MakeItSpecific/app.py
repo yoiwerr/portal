@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
 
     conn_string = build_connection_string(config)
     vs = PGVectorStore(conn_string)
-    await vs.ensure_tables()
+    # ensure_tables 由 rag.ensure_ready() 统一调用，这里不重复
 
     ss = SessionStore(conn_string)
 
