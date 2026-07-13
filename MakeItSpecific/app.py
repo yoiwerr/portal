@@ -26,7 +26,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from config import config
@@ -53,37 +53,47 @@ async def lifespan(app: FastAPI):
     print(f"  MakeItSpecific — Provider: {p} | Model: {m}")
     print("=" * 60)
 
-    conn_string = build_connection_string(config)
-    vs = PGVectorStore(conn_string)
-    # ensure_tables 由 rag.ensure_ready() 统一调用，这里不重复
+    _vs = None
+    try:
+        conn_string = build_connection_string(config)
+        _vs = PGVectorStore(conn_string)
 
-    ss = SessionStore(conn_string)
+        ss = SessionStore(conn_string)
 
-    rag = RAGService(
-        vector_store=vs,
-        knowledge_base_dir=config.knowledge_base_dir,
-        api_key=config.dashscope_api_key,
-        chunk_min=config.rag_chunk_min,
-        chunk_max=config.rag_chunk_max,
-        similarity_threshold=config.similarity_threshold,
-        rerank_enabled=config.rerank_enabled,
-        rerank_model=config.rerank_model,
-        rerank_top_k=config.rerank_top_k,
-        rerank_coarse_k=config.rerank_coarse_k,
-    )
-    await rag.ensure_ready()
-    stats = await rag.get_kb_stats()
-    print(f"  KB: {stats['source_files']} files, {stats['chunk_count']} chunks")
-    if stats['source_files'] > 0:
-        await rag.ingest_knowledge_base()
+        rag = RAGService(
+            vector_store=_vs,
+            knowledge_base_dir=config.knowledge_base_dir,
+            api_key=config.dashscope_api_key,
+            chunk_min=config.rag_chunk_min,
+            chunk_max=config.rag_chunk_max,
+            similarity_threshold=config.similarity_threshold,
+            rerank_enabled=config.rerank_enabled,
+            rerank_model=config.rerank_model,
+            rerank_top_k=config.rerank_top_k,
+            rerank_coarse_k=config.rerank_coarse_k,
+        )
+        await rag.ensure_ready()
+        stats = await rag.get_kb_stats()
+        print(f"  KB: {stats['source_files']} files, {stats['chunk_count']} chunks")
+        if stats['source_files'] > 0:
+            await rag.ingest_knowledge_base()
 
-    model = create_model(config)
-    agent = Agent(model=model, rag_service=rag, session_store=ss, config=config)
-    chat.set_agent(agent); sessions.set_agent(agent); knowledge.set_agent(agent); feedback.set_agent(agent)
+        model = create_model(config)
+        agent = Agent(model=model, rag_service=rag, session_store=ss, config=config)
+        chat.set_agent(agent); sessions.set_agent(agent); knowledge.set_agent(agent); feedback.set_agent(agent)
 
-    print("  [OK] ready\n")
+        print("  [OK] ready\n")
+    except Exception as e:
+        print(f"  [FAIL] 启动失败 (部分功能不可用): {e}")
+        import traceback; traceback.print_exc()
+        # 不抛异常 — 让 app 启动以便健康检查和静态文件可用
+        # agent 保持 None，依赖它的端点返回 503
+
     yield
-    vs.close()
+
+    # 清理
+    if ss is not None: ss.close()
+    if _vs is not None: _vs.close()
 
 
 app = FastAPI(title="MakeItSpecific", version="3.0", lifespan=lifespan)
@@ -102,7 +112,24 @@ async def homepage():
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "provider": config.llm_provider}
+    deps = {"postgres": False, "agent": agent is not None}
+    # 快速 DB 连通性检查
+    if ss is not None:
+        try:
+            cur = ss.conn.cursor()
+            cur.execute("SELECT 1")
+            cur.close()
+            deps["postgres"] = True
+        except Exception:
+            pass
+
+    degraded = not deps["postgres"] or not deps["agent"]
+    status_code = 503 if degraded else 200
+    return JSONResponse(
+        content={"status": "degraded" if degraded else "ok",
+                 "provider": config.llm_provider, "deps": deps},
+        status_code=status_code,
+    )
 
 if __name__ == "__main__":
     import uvicorn
