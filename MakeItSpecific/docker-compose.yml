@@ -7,20 +7,40 @@ services:
       # LLM (多 Provider)
       LLM_PROVIDER: ${LLM_PROVIDER:-auto}
       LLM_MODEL: ${LLM_MODEL:-qwen-plus}
+      LLM_TEMPERATURE: "${LLM_TEMPERATURE:-0.7}"
+      LLM_TIMEOUT: "${LLM_TIMEOUT:-120.0}"
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      LOCAL_LLM_URL: ${LOCAL_LLM_URL:-}
       # PostgreSQL (与 ChatLab 共用 pgvector/pgvector:pg16)
       PG_HOST: postgres
       PG_PORT: "5432"
       PG_DATABASE: chatdemopg
       PG_USER: postgres
-      PGSQLPASSWORD: ${PGSQLPASSWORD}
+      PGSQLPASSWORD: "${PGSQLPASSWORD}"
       # Agent
+      MAX_TOOL_ROUNDS: "${MAX_TOOL_ROUNDS:-10}"
+      AGENT_TIMEOUT: "${AGENT_TIMEOUT:-180.0}"
+      MAX_CLARIFY_ROUNDS: "${MAX_CLARIFY_ROUNDS:-3}"
+      MAX_QUESTIONS_PER_ROUND: "${MAX_QUESTIONS_PER_ROUND:-5}"
       SANDBOX_ENABLED: ${SANDBOX_ENABLED:-false}
+      SANDBOX_TIMEOUT: "${SANDBOX_TIMEOUT:-30.0}"
       MEMORY_ENABLED: ${MEMORY_ENABLED:-true}
+      # RAG
+      RAG_TOP_K: "${RAG_TOP_K:-3}"
+      RAG_CHUNK_MIN: "${RAG_CHUNK_MIN:-200}"
+      RAG_CHUNK_MAX: "${RAG_CHUNK_MAX:-800}"
+      SIMILARITY_THRESHOLD: "${SIMILARITY_THRESHOLD:-0.6}"
+      # Rerank
+      RERANK_ENABLED: ${RERANK_ENABLED:-true}
+      RERANK_MODEL: ${RERANK_MODEL:-qwen3-rerank}
+      RERANK_TOP_K: "${RERANK_TOP_K:-5}"
+      RERANK_COARSE_K: "${RERANK_COARSE_K:-20}"
     volumes:
       - specificdata:/app/data
     depends_on:
