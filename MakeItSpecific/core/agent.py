@@ -411,6 +411,9 @@ class Agent:
             # ── Planner checkpoint ──
             "checkpoint_feedback": "",
             "checkpoint_retry_count": 0,
+            # ── 执行进度追踪 ──
+            "completed_steps": [],
+            "execute_round": 0,
         }
 
     def list_sessions(self, module=None):

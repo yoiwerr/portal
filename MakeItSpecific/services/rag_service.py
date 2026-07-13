@@ -423,7 +423,7 @@ class RAGService:
             return []
 
     async def query_formatted(self, query_text: str, top_k: int = 3) -> str:
-        """检索并格式化为上下文文本，可直接注入 LLM prompt。"""
+        """检索并格式化为 Markdown 上下文 — 用于被动注入 Planner/Executor System Prompt。"""
         results = await self.query(query_text, top_k)
         if not results:
             return "（未找到相关知识。以下回答基于通用知识，可能不准确。）"
@@ -442,6 +442,39 @@ class RAGService:
 
         lines.append("**规则: 基于以上内容回答。如知识库未覆盖请明确说明。不要编造知识库中不存在的信息。**")
         return "\n".join(lines)
+
+    async def query_structured(self, query_text: str, top_k: int = 3) -> dict:
+        """检索并返回结构化结果 — 用于 search_knowledge_base tool 的精确输出。
+
+        与 query_formatted() 的区别:
+          - query_formatted → Markdown 长文本 → 注入 System Prompt 给 LLM 被动读
+          - query_structured → 结构化 dict → tool 返回给 LLM 主动解析引用
+
+        返回:
+          {
+            "hit": true/false,
+            "query": "原始查询",
+            "results": [{rank, source_file, content_snippet, score, rerank_score}, ...],
+            "total_scanned": 20
+          }
+        """
+        raw = await self.query(query_text, top_k)
+        results = []
+        for i, r in enumerate(raw, 1):
+            results.append({
+                "rank": i,
+                "source_file": r.get("metadata", {}).get("source_file", "未知来源"),
+                "content_snippet": r.get("document", "")[:400],
+                "score": round(r.get("score", 0), 3),
+                "rerank_score": round(r.get("rerank_score", 0), 3) if "rerank_score" in r else None,
+            })
+
+        return {
+            "hit": len(results) > 0,
+            "query": query_text,
+            "results": results,
+            "total_scanned": self.rerank_coarse_k,
+        }
 
     # ============================================================
     # Query 增强 — 上下文驱动（不扩写，只组合真实信息）

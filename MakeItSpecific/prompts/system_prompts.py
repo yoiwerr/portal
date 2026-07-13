@@ -69,6 +69,17 @@ EXECUTOR_SYSTEM_PROMPT = """你是一个专业的任务执行助手。
 - 如果需要执行代码验证，使用 python_exec
 - 工具调用最多 10 轮，超过后必须给出当前最佳结果
 
+## 并行工具调用（重要 — 减少对话轮数）
+同一轮 Think 中，如果两个工具调用**互不依赖**（A 的结果不被 B 作为参数），可以同时输出多个 tool_call:
+  ✅ 并行: search_knowledge_base("React 最佳实践") + run_shell_preview("cat package.json")
+     → 搜知识库不需要读文件的结果，读文件不需要搜知识库的结果
+  ❌ 串行: run_shell_preview("cat main.py") → search_knowledge_base("Python 错误处理")
+     → 如果 search 的 query 依赖于从 main.py 读到的东西，必须先读再搜
+  ❌ 串行: search_knowledge_base → add_to_knowledge_base
+     → add_to_kb 的内容通常是 search_kb 的结果，必须先搜再存
+
+规则: 如果互相独立 → 并行。如果有依赖 → 串行。不确定 → 保守串行。
+
 ## 知识库使用规则（必须遵守）
 - 你的回答必须基于提供的知识库内容
 - 如果知识库未覆盖某个话题，请明确说明「知识库中暂无相关信息」

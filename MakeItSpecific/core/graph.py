@@ -106,6 +106,9 @@ class AgentState(TypedDict):
     # ── Planner 升级: checkpoint ──
     checkpoint_feedback: str      # Planner 中途检查的语义修正意见
     checkpoint_retry_count: int   # checkpoint→execute 重试次数 (独立于 reflection)
+    # ── 执行进度追踪 ──
+    completed_steps: list[str]    # 已完成的执行步骤（用于重试时知道做到哪了）
+    execute_round: int            # 当前执行轮次（checkpoint→execute 重试时递增）
 
 
 # ── Skill System Prompt 映射 ──
@@ -388,12 +391,42 @@ async def execute_node(state: AgentState, skills=None, model=None) -> dict:
     from tools import get_tools_for_skill
     tools = get_tools_for_skill(skill_name)
 
+    # ── 执行进度: 如果是从 checkpoint/reflect 重试，告诉 Executor 已经做完了哪些步骤 ──
+    completed = state.get("completed_steps", []) or []
+    execute_round = state.get("execute_round", 0)
+    progress_text = ""
+    if completed:
+        progress_text = f"\n## 📍 执行进度（第 {execute_round} 轮）\n已完成步骤: {', '.join(completed)}\n如果上述步骤的结果仍然有效，不要重复执行——直接从下一步继续。"
+
+    full_system_prompt = f"""{skill_system}
+
+{EXECUTOR_SYSTEM_PROMPT}{progress_text}
+{exec_context_block}
+## 当前任务的上下文
+- 目标: {plan.get('goal', '完成用户请求')}
+- 执行步骤: {json.dumps(plan.get('execution_plan', []), ensure_ascii=False)}
+
+## 用户背景
+{background or "（未填写）"}
+
+## 知识库参考
+{rag_context or "（无）"}
+
+## 额外上下文
+{extra_context or "（无）"}
+
+## 用户原始需求
+{message}
+"""
+
     output = ""
     result = {}
     tool_results = []
 
     try:
-        react_agent = create_react_agent(model=model, tools=tools, prompt=full_system_prompt)
+        # ── 并行 tool call: 如果底层模型支持（Qwen/DeepSeek），同一轮可以输出多个 tool_call ──
+        parallel_model = model.bind_tools(tools, parallel_tool_calls=True)
+        react_agent = create_react_agent(model=parallel_model, tools=tools, prompt=full_system_prompt)
         result = await react_agent.ainvoke({"messages": [HumanMessage(content=message)]})
 
         output_messages = result.get("messages", [])
@@ -418,7 +451,20 @@ async def execute_node(state: AgentState, skills=None, model=None) -> dict:
                 for tc in m.tool_calls:
                     tool_results.append({"name": tc.get("name", "unknown"), "args": tc.get("args", {})})
 
-    return {"output": output, "tool_results": tool_results}
+    # ── 执行进度追踪: 标记本轮完成了哪些 plan 步骤 ──
+    new_completed = list(completed)
+    plan_steps = plan.get("execution_plan", [])
+    if plan_steps and output:
+        for step in plan_steps:
+            if step not in new_completed:
+                new_completed.append(step)
+
+    return {
+        "output": output,
+        "tool_results": tool_results,
+        "completed_steps": new_completed,
+        "execute_round": execute_round + 1,
+    }
 
 
 # ============================================================
@@ -468,6 +514,10 @@ async def checkpoint_node(state: AgentState, model=None) -> dict:
 
 ## Planner 设定的原始目标
 {plan.get('goal', '完成用户请求')}
+
+## 执行进度
+已完成步骤: {', '.join(state.get('completed_steps', []) or []) or '（无记录）'}
+执行轮次: 第 {state.get('execute_round', 0)} 轮
 
 ## 用户的原始消息
 {message}
