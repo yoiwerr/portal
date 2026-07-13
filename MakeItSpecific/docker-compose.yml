@@ -13,10 +13,10 @@ services:
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       # PostgreSQL (与 ChatLab 共用 pgvector/pgvector:pg16)
-      DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_NAME: makeitspecific
-      DB_USER: postgres
+      PG_HOST: postgres
+      PG_PORT: "5432"
+      PG_DATABASE: makeitspecific
+      PG_USER: postgres
       PGSQLPASSWORD: ${PGSQLPASSWORD}
       # Agent
       SANDBOX_ENABLED: ${SANDBOX_ENABLED:-false}
