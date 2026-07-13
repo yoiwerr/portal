@@ -66,17 +66,20 @@ class Config:
     def from_env(cls):
         c = cls()
         for a in ("api_port","api_host","llm_provider","llm_model",
-                  "pg_host","pg_port","pg_database","pg_user","pg_password",
+                  "pg_host","pg_port","pg_database","pg_user",
                   "deepseek_base_url","deepseek_model","openai_base_url","openai_model",
                   "local_llm_url","rerank_model"):
             ev = os.getenv(a.upper(), "")
             if ev and hasattr(c, a): setattr(c, a, type(getattr(c, a))(ev))
-        for a in ("llm_temperature","llm_timeout","max_tool_rounds","agent_timeout",
-                  "rag_top_k","rag_chunk_min","rag_chunk_max","similarity_threshold",
-                  "rerank_top_k","rerank_coarse_k","sandbox_timeout","max_questions_per_round"):
+        # float 字段 — 不包含 int 字段，避免 range(float) TypeError
+        for a in ("llm_temperature","llm_timeout","agent_timeout",
+                  "similarity_threshold","sandbox_timeout"):
             ev = os.getenv(a.upper(), "")
             if ev: setattr(c, a, float(ev))
-        for a in ("max_clarify_rounds",):
+        # int 字段
+        for a in ("max_tool_rounds","rag_top_k","rag_chunk_min","rag_chunk_max",
+                  "rerank_top_k","rerank_coarse_k","max_questions_per_round",
+                  "max_clarify_rounds"):
             ev = os.getenv(a.upper(), "")
             if ev: setattr(c, a, int(ev))
         c.dashscope_api_key = os.getenv("DASHSCOPE_API_KEY","")
