@@ -303,6 +303,11 @@ class Agent:
         except Exception as e:
             logger.warning(f"[ContextEngine] 更新失败 (非关键): {e}")
 
+        logger.info(
+            f"[Agent] done session={session_id} tokens={token_count} "
+            f"module={module} intent={intent.get('label', '?')}"
+        )
+
         yield {"event": "done", "data": {
             "session_id": session_id, "message_id": 0, "tokens_used": token_count,
             "intent": intent,
