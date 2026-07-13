@@ -16,6 +16,8 @@ services:
       - /etc/letsencrypt/live/yoiwerr.site/privkey.pem:/etc/letsencrypt/live/yoiwerr.site/privkey.pem:ro
       - /etc/letsencrypt/archive:/etc/letsencrypt/archive:ro
     depends_on:
-      - api
-      - specific-api
+      api:
+        condition: service_healthy
+      specific-api:
+        condition: service_healthy
     restart: unless-stopped
