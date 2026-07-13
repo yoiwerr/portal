@@ -13,7 +13,6 @@ load_dotenv(_env if _env.exists() else Path(__file__).resolve().parent / ".env")
 class Config:
     project_root: Path = field(default_factory=lambda: Path(__file__).parent.resolve())
     data_dir: Path = field(default=None)
-    db_path: Path = field(default=None)
     knowledge_base_dir: Path = field(default=None)
     export_dir: Path = field(default=None)
     api_host: str = "0.0.0.0"
@@ -55,16 +54,6 @@ class Config:
     def __post_init__(self):
         if self.data_dir is None:
             self.data_dir = self.project_root / "data"
-        ps = str(self.project_root)
-        is_wsl = ps.startswith("\\\\wsl.localhost\\") or ps.startswith("//wsl.localhost/")
-        if is_wsl:
-            tmp = Path(os.environ.get("TEMP", os.path.expanduser("~"))) / ".makeitspecific"
-            tmp.mkdir(parents=True, exist_ok=True)
-            if self.db_path is None:
-                self.db_path = tmp / "makeitspecific.db"
-        else:
-            if self.db_path is None:
-                self.db_path = self.data_dir / "makeitspecific.db"
         if self.knowledge_base_dir is None:
             self.knowledge_base_dir = self.project_root / "knowledge_base"
         if self.export_dir is None:

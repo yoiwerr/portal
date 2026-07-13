@@ -63,6 +63,11 @@ SKILL_TOOL_MAP = {
         add_to_knowledge_base,
         search_knowledge_base,
     ],
+    "code_review": [
+        run_shell_preview,
+        search_knowledge_base,
+        add_to_knowledge_base,
+    ],
 }
 
 

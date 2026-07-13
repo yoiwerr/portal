@@ -119,11 +119,39 @@ INFO_RETENTION_DIMENSIONS = {
     },
 }
 
+CODE_REVIEW_DIMENSIONS = {
+    "target_files": {
+        "label": "目标文件",
+        "weight": 0.40,
+        "required": True,
+        "hint": "要审查哪个文件或目录？"
+    },
+    "focus_areas": {
+        "label": "审查重点",
+        "weight": 0.35,
+        "required": False,
+        "hint": "重点看什么？正确性 / 安全性 / 性能 / 可读性？"
+    },
+    "language": {
+        "label": "编程语言",
+        "weight": 0.15,
+        "required": False,
+        "hint": "是什么编程语言？（不确定可以自动检测）"
+    },
+    "context": {
+        "label": "项目背景",
+        "weight": 0.10,
+        "required": False,
+        "hint": "这个代码是做什么的？有什么特殊约束？"
+    },
+}
+
 # 模块 → 维度映射
 MODULE_DIMENSIONS: Dict[str, Dict] = {
     "prompt_refiner": PROMPT_REFINER_DIMENSIONS,
     "work_arranger": WORK_ARRANGER_DIMENSIONS,
     "info_retention": INFO_RETENTION_DIMENSIONS,
+    "code_review": CODE_REVIEW_DIMENSIONS,
 }
 
 
@@ -196,6 +224,23 @@ CLARIFICATION_TEMPLATES: Dict[str, List[str]] = {
     "usage": [
         "这些信息下次会在什么场景下使用？",
         "你希望再次使用时能快速找到哪些关键信息？",
+    ],
+    # 代码审查相关
+    "target_files": [
+        "你想让我审查哪个文件？方便告诉我路径吗？",
+        "项目中有哪些你认为比较关键的代码文件？",
+    ],
+    "focus_areas": [
+        "审查时想让我重点关注什么？是找 bug、查安全问题、还是优化性能？",
+        "你有什么特别担心的方面吗？比如错误处理、安全漏洞、代码结构？",
+    ],
+    "language": [
+        "这个项目用的是什么编程语言？",
+        "是什么语言写的？不确定的话我可以自己检测。",
+    ],
+    "context": [
+        "能简单说一下这个代码是做什么的吗？这样我能给出更贴切的建议。",
+        "有没有什么特殊的约束或要求我需要知道？",
     ],
 }
 

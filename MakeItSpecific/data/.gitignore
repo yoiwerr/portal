@@ -1,6 +1,5 @@
-# 忽略运行时数据
-makeitspecific.db
-chroma/
+# 忽略运行时数据（全部走 PostgreSQL，无本地文件数据库）
+logs/
 
 # 保留模板文件
 !knowledge_base/.gitkeep

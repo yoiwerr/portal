@@ -17,7 +17,7 @@
   work_plan       → work_arranger
   info_organize   → info_retention
   research        → work_arranger (先当工作计划处理)
-  code_help       → prompt_refiner (先当提示词处理)
+  code_help       → code_review        (代码审查)
   general         → prompt_refiner (默认)
 
 用法:
@@ -55,7 +55,7 @@ SCENE_TO_MODULE = {
     "work_plan": "work_arranger",
     "info_organize": "info_retention",
     "research": "work_arranger",       # 调研任务 → 工作计划流
-    "code_help": "prompt_refiner",     # 代码任务 → 提示词流（临时，后续建独立 Skill）
+    "code_help": "code_review",         # 代码任务 → 代码审查
     "general": "prompt_refiner",       # 默认
 }
 
@@ -64,7 +64,7 @@ SCENE_LABELS = {
     "work_plan": "工作安排",
     "info_organize": "信息整理",
     "research": "调研分析",
-    "code_help": "代码帮助",
+    "code_help": "代码审查",
     "general": "通用对话",
 }
 

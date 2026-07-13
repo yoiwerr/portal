@@ -37,6 +37,7 @@ from prompts.system_prompts import (
     PROMPT_REFINER_SYSTEM,
     WORK_ARRANGER_SYSTEM,
     INFO_RETENTION_SYSTEM,
+    CODE_REVIEW_SYSTEM,
 )
 
 logger = logging.getLogger(__name__)
@@ -112,6 +113,7 @@ _SKILL_SYSTEM_PROMPTS = {
     "prompt_refiner": PROMPT_REFINER_SYSTEM,
     "work_arranger": WORK_ARRANGER_SYSTEM,
     "info_retention": INFO_RETENTION_SYSTEM,
+    "code_review": CODE_REVIEW_SYSTEM,
 }
 
 

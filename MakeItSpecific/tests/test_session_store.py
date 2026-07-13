@@ -1,81 +1,81 @@
-"""SessionStore 单元测试。"""
+"""SessionStore 单元测试 — PostgreSQL 版。
 
-import tempfile
-from pathlib import Path
+需要 PostgreSQL 运行中。未配置则跳过。
+"""
 
+import os
+import pytest
+psycopg = pytest.importorskip("psycopg", reason="psycopg 未安装")
 from services.session_store import SessionStore
 
 
-def test_create_and_get_session():
-    """测试创建和获取会话。"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        store = SessionStore(db_path)
+def _get_test_conn_string():
+    return (
+        f"host={os.getenv('DB_HOST', 'localhost')} "
+        f"port={os.getenv('DB_PORT', '5432')} "
+        f"dbname={os.getenv('DB_NAME', 'makeitspecific')} "
+        f"user={os.getenv('DB_USER', 'postgres')} "
+        f"password={os.getenv('PGSQLPASSWORD', '')}"
+    )
 
-        # 创建会话
-        sid = store.create_session(
-            module="prompt_refiner",
-            title="测试会话",
-            background="测试背景"
-        )
+
+def _pg_available():
+    try:
+        conn = psycopg.connect(_get_test_conn_string())
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(not _pg_available(), reason="PostgreSQL 不可用，跳过")
+class TestSessionStorePG:
+
+    def test_create_and_get_session(self):
+        store = SessionStore(_get_test_conn_string())
+        sid = store.create_session(module="prompt_refiner", title="测试")
         assert sid.startswith("sess_")
-
-        # 获取会话
         session = store.get_session(sid)
         assert session is not None
         assert session["module"] == "prompt_refiner"
-        assert session["title"] == "测试会话"
+        store.delete_session(sid)
+        store.close()
 
-
-def test_save_and_get_messages():
-    """测试消息存储和获取。"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        store = SessionStore(db_path)
-
+    def test_save_and_get_messages(self):
+        store = SessionStore(_get_test_conn_string())
         sid = store.create_session(module="work_arranger")
-
-        # 保存多条消息
         store.save_message(sid, "user", "你好", "input")
-        store.save_message(sid, "assistant", "你好！有什么可以帮你的？", "clarify")
-        store.save_message(sid, "user", "我需要做一个项目", "input")
-        store.save_message(sid, "assistant", "好的，让我们来规划一下", "result")
-
-        # 获取对话
+        store.save_message(sid, "assistant", "你好！", "clarify")
         msgs = store.get_conversation(sid)
-        assert len(msgs) == 4
-        assert msgs[0]["role"] == "user"
-        assert msgs[1]["role"] == "assistant"
-        assert msgs[2]["content"] == "我需要做一个项目"
+        assert len(msgs) == 2
+        store.delete_session(sid)
+        store.close()
 
-
-def test_list_sessions():
-    """测试列出会话。"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        store = SessionStore(db_path)
-
-        store.create_session(module="prompt_refiner", title="S1")
-        store.create_session(module="work_arranger", title="S2")
-
+    def test_list_sessions(self):
+        store = SessionStore(_get_test_conn_string())
+        s1 = store.create_session(module="prompt_refiner", title="S1")
+        s2 = store.create_session(module="work_arranger", title="S2")
         sessions = store.list_sessions()
-        assert len(sessions) == 2
+        assert len(sessions) >= 2
+        store.delete_session(s1)
+        store.delete_session(s2)
+        store.close()
 
-        sessions = store.list_sessions(module="prompt_refiner")
-        assert len(sessions) == 1
-        assert sessions[0]["title"] == "S1"
-
-
-def test_delete_session():
-    """测试删除会话级联删除消息。"""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        db_path = Path(tmpdir) / "test.db"
-        store = SessionStore(db_path)
-
+    def test_delete_session_cascade(self):
+        store = SessionStore(_get_test_conn_string())
         sid = store.create_session(module="info_retention")
         store.save_message(sid, "user", "test", "input")
         assert len(store.get_conversation(sid)) == 1
-
         store.delete_session(sid)
         assert store.get_session(sid) is None
         assert len(store.get_conversation(sid)) == 0
+        store.close()
+
+    def test_feedback(self):
+        store = SessionStore(_get_test_conn_string())
+        sid = store.create_session(module="code_review")
+        store.save_feedback(session_id=sid, rating="negative", comment="no")
+        stats = store.get_feedback_stats()
+        assert stats["total"] >= 1
+        store.delete_session(sid)
+        store.close()

@@ -52,6 +52,8 @@ class Agent:
             "work_arranger": WorkArranger(),
             "info_retention": InfoRetention(),
         }
+        from skills.code_review import CodeReview
+        self.skills["code_review"] = CodeReview()
 
         # ── LangGraph 图 ──
         self.graph = create_graph(

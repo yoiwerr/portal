@@ -53,11 +53,11 @@ async def lifespan(app: FastAPI):
     print(f"  MakeItSpecific — Provider: {p} | Model: {m}")
     print("=" * 60)
 
-    ss = SessionStore(config.db_path)
-
-    conn = build_connection_string(config)
-    vs = PGVectorStore(conn)
+    conn_string = build_connection_string(config)
+    vs = PGVectorStore(conn_string)
     await vs.ensure_tables()
+
+    ss = SessionStore(conn_string)
 
     rag = RAGService(
         vector_store=vs,
