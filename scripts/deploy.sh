@@ -31,6 +31,7 @@ if [ ! -f .env ]; then
     read -rp "  PostgreSQL 密码 (必填): " PG_PASS
     read -rp "  DeepSeek API Key (可选): " DS_KEY
     read -rp "  OpenAI API Key (可选): " OAI_KEY
+    read -rp "  Tavily API Key (ChatLab 联网搜索, 可选): " TAVILY_KEY
 
     cat > .env <<EOF
 # LLM
@@ -50,6 +51,9 @@ OPENAI_MODEL=gpt-4o
 PGSQLPASSWORD=${PG_PASS}
 DB_HOST=postgres
 DB_PORT=5432
+
+# ChatLab
+TAVILY_API_KEY=${TAVILY_KEY}
 
 # Agent
 MEMORY_ENABLED=true

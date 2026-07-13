@@ -35,13 +35,6 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
-    networks:
-      - portal-net
 
 volumes:
   specificdata:
-
-networks:
-  portal-net:
-    external: true
-    name: chathistoryanalyst_default

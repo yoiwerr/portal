@@ -1,24 +1,4 @@
-root@iZ2zeex1aq4wc994aznivfZ:~/portal# docker compose ps postgres
-NAME              IMAGE                    COMMAND                  SERVICE    CREATED       STATUS                 PORTS
-chalab-postgres   pgvector/pgvector:pg16   "docker-entrypoint.s…"   postgres   4 hours ago   Up 4 hours (healthy)   5432/tcp
-root@iZ2zeex1aq4wc994aznivfZ:~/portal# docker compose logs specific-api --tail=50
-specific-api  |                ^^^^^^^^^^^^^^^^^^^^^^^^^^
-specific-api  |   File "/usr/local/lib/python3.12/contextlib.py", line 210, in __aenter__
-specific-api  |     return await anext(self.gen)
-specific-api  |            ^^^^^^^^^^^^^^^^^^^^^
-specific-api  |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 232, in merged_lifespan
-specific-api  |     async with original_context(app) as maybe_original_state:
-specific-api  |                ^^^^^^^^^^^^^^^^^^^^^
-specific-api  |   File "/usr/local/lib/python3.12/contextlib.py", line 210, in __aenter__
-specific-api  |     return await anext(self.gen)
-specific-api  |            ^^^^^^^^^^^^^^^^^^^^^
-specific-api  |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 232, in merged_lifespan
-specific-api  |     async with original_context(app) as maybe_original_state:
-specific-api  |                ^^^^^^^^^^^^^^^^^^^^^
-specific-api  |   File "/usr/local/lib/python3.12/contextlib.py", line 210, in __aenter__
-specific-api  |     return await anext(self.gen)
-specific-api  |            ^^^^^^^^^^^^^^^^^^^^^
-specific-api  |   File "/usr/local/lib/python3.12/site-packages/fastapi/routing.py", line 232, in merged_lifespan
+root@iZ2zeex1aq4wc994aznivfZ:~/portadocker compose logs specific-api --tail=30=30
 specific-api  |     async with original_context(app) as maybe_original_state:
 specific-api  |                ^^^^^^^^^^^^^^^^^^^^^
 specific-api  |   File "/usr/local/lib/python3.12/contextlib.py", line 210, in __aenter__
@@ -38,15 +18,12 @@ specific-api  |     ^^^^^^^^^
 specific-api  |   File "/app/services/vector_store.py", line 82, in conn
 specific-api  |     self._conn = psycopg.connect(self.conn_string, autocommit=False)
 specific-api  |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-specific-api  |   File "/usr/local/lib/python3.12/site-packages/psycopg/connection.py", line 130, in connect
-specific-api  |     raise new_ex.with_traceback(None)
-specific-api  | psycopg.OperationalError: connection failed: connection to server at "127.0.0.1", port 5432 failed: Connection refused
-specific-api  |         Is the server running on that host and accepting TCP/IP connections?
-specific-api  | Multiple connection attempts failed. All failures were:
-specific-api  | - host: 'localhost', port: '5432', hostaddr: '::1': connection failed: connection to server at "::1", port 5432 failed: Connection refused
-specific-api  |         Is the server running on that host and accepting TCP/IP connections?
-specific-api  | - host: 'localhost', port: '5432', hostaddr: '127.0.0.1': connection failed: connection to server at "127.0.0.1", port 5432 failed: Connection refused
-specific-api  |         Is the server running on that host and accepting TCP/IP connections?
+specific-api  |   File "/usr/local/lib/python3.12/site-packages/psycopg/connection.py", line 100, in connect
+specific-api  |     attempts = conninfo_attempts(params)
+specific-api  |                ^^^^^^^^^^^^^^^^^^^^^^^^^
+specific-api  |   File "/usr/local/lib/python3.12/site-packages/psycopg/_conninfo_attempts.py", line 55, in conninfo_attempts
+specific-api  |     raise last_exc
+specific-api  | psycopg.OperationalError: failed to resolve host 'postgres': [Errno -3] Temporary failure in name resolution
 specific-api  |
 specific-api  | ERROR:    Application startup failed. Exiting.
 specific-api  | ============================================================

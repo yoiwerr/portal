@@ -39,6 +39,9 @@ BRANCH=$(git branch --show-current)
 COMMIT=$(git rev-parse --short HEAD)
 echo "分支: $BRANCH | 提交: $COMMIT"
 
+# 保存当前 HEAD，用于 pull 后精确计算变更
+PREV_HEAD=$(git rev-parse HEAD)
+
 if ! git diff --quiet origin/"$BRANCH" 2>/dev/null; then
     warn "本地落后于远程，请先 git pull"
     echo ""
@@ -57,7 +60,8 @@ if [ ! -f .env ]; then
 fi
 
 # ── 检测哪些子项目有代码变更 ──
-CHANGED_FILES=$(git diff --name-only HEAD@{1} HEAD 2>/dev/null || echo "")
+# 用保存的 PREV_HEAD 而非 HEAD@{1}，避免多 commit 跳变时漏判
+CHANGED_FILES=$(git diff --name-only "$PREV_HEAD" HEAD 2>/dev/null || echo "")
 
 rebuild_all=false
 rebuild_chatlab=false

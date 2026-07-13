@@ -48,6 +48,8 @@ services:
     command: streamlit run front/frontend.py --server.port 8501 --server.enableCORS false --server.enableXsrfProtection false --server.baseUrlPath /chatlab
     environment:
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
       TAVILY_API_KEY: ${TAVILY_API_KEY}
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
       PGSQLPASSWORD: ${PGSQLPASSWORD}
@@ -58,6 +60,12 @@ services:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8501/chatlab/_stcore/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
 volumes:
   pgdata:
