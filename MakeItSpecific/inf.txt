@@ -1,4 +1,4 @@
-root@iZ2zeex1aq4wc994aznivfZ:~/portadocker compose logs specific-api --tail=30=30
+root@iZ2zeex1aq4wc994aznivfZ:~/portal# docker compose logs specific-api --tail=30
 specific-api  |     async with original_context(app) as maybe_original_state:
 specific-api  |                ^^^^^^^^^^^^^^^^^^^^^
 specific-api  |   File "/usr/local/lib/python3.12/contextlib.py", line 210, in __aenter__
