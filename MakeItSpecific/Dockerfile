@@ -5,7 +5,7 @@ WORKDIR /app
 # 国内镜像加速：Debian apt 源
 RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources \
     && apt-get update && apt-get install -y --no-install-recommends \
-    build-essential curl libpq-dev \
+    curl libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # uv 安装依赖
@@ -18,9 +18,10 @@ RUN uv pip install --system --no-cache-dir \
     dashscope langchain langchain-community langchain-openai langgraph \
     pytest pytest-asyncio
 
+RUN mkdir -p /app/data && chmod 777 /app/data
+
 COPY . .
 
-RUN mkdir -p /app/data && chmod 777 /app/data
 
 EXPOSE 8000
 

@@ -1,0 +1,14 @@
+.git
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+.venv_broken/
+data/
+tests/
+docs/
+.env
+*.db
+*.log
+inf.txt
+.DS_Store
