@@ -152,7 +152,7 @@ echo "==== 健康检查 ===="
 
 check_url() {
     local url=$1 label=$2
-    if curl -sf -o /dev/null "$url" 2>/dev/null; then
+    if curl -sfk -o /dev/null "$url" 2>/dev/null; then
         ok "$label ($url)"
         return 0
     else
