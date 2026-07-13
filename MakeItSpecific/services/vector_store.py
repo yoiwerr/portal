@@ -115,7 +115,7 @@ class PGVectorStore:
                             id          TEXT PRIMARY KEY,
                             document    TEXT NOT NULL,
                             embedding   vector({}) NOT NULL,
-                            metadata    JSONB DEFAULT '{}'::jsonb,
+                            metadata    JSONB DEFAULT '{{}}'::jsonb,
                             created_at  TIMESTAMPTZ DEFAULT NOW()
                         )
                     """).format(sql.Identifier(coll_name), sql.Literal(dim)))
