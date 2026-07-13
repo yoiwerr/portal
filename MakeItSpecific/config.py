@@ -35,8 +35,8 @@ class Config:
     openai_model: str = "gpt-4o"
     local_llm_url: str = ""
     clarify_threshold: float = 0.75
-    max_clarify_rounds: int = 5
-    max_questions_per_round: int = 3
+    max_clarify_rounds: int = 3
+    max_questions_per_round: int = 5
     max_tool_rounds: int = 10
     agent_timeout: float = 180.0
     rag_top_k: int = 3

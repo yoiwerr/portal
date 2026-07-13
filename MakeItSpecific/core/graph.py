@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 MAX_REFLECTION_RETRIES = 2
 DEFAULT_MAX_TOOL_ROUNDS = 10
 CLARIFY_THRESHOLD = 0.75
-MAX_CLARIFY_ROUNDS = 5
+MAX_CLARIFY_ROUNDS = 3
 MAX_CHECKPOINT_RETRIES = 1     # checkpoint 失败最多重试 1 次
 
 
@@ -235,7 +235,10 @@ async def planner_node(state: AgentState, model=None, rag_service=None) -> dict:
     l3_facts = state.get("l3_facts", "")
     turn_count = state.get("turn_count", 0)
 
-    context_block = ""
+    # ── 🔴 已锁定意图 + 工作记忆（最高优先级，先注入）──
+    locked_block = _build_locked_block(intent, existing_dims_text, turn_count)
+
+    context_block = locked_block  # 意图+工作记忆放最前面
     if l2_summary:
         context_block += "\n## 🔴 前情提要（滚动摘要）\n" + str(l2_summary) + "\n"
     if l1_raw:
@@ -246,9 +249,6 @@ async def planner_node(state: AgentState, model=None, rag_service=None) -> dict:
 
     planner_prompt = f"""{PLANNER_SYSTEM_PROMPT}
 
-## 当前模块: {module}
-## 意图识别: {intent.get('label', '未知')} (置信度: {intent.get('confidence', 0)})
-## 对话轮数: 第 {turn_count} 轮
 {context_block}
 ## 该模块的信息维度定义
 {dims_desc}
@@ -260,9 +260,6 @@ async def planner_node(state: AgentState, model=None, rag_service=None) -> dict:
 {extra_context or "（无）"}
 
 {rag_context or ""}
-
-## 已确认的信息
-{existing_dims_text}
 
 ## 用户最新消息
 {message}
@@ -343,7 +340,11 @@ async def execute_node(state: AgentState, skills=None, model=None) -> dict:
     last_turn_summary = state.get("last_turn_summary", "")
     checkpoint_feedback = state.get("checkpoint_feedback", "")
 
-    exec_context_block = ""
+    # ── 🔴 已锁定意图 + 工作记忆（最高优先级，先注入）──
+    intent = state.get("intent", {})
+    locked_block = _build_locked_block(intent, dims_text, state.get("turn_count", 0))
+
+    exec_context_block = locked_block  # 意图+工作记忆放最前面
     if l2_summary:
         exec_context_block += "\n## 🔴 前情提要（滚动摘要）\n" + str(l2_summary) + "\n"
     if l1_raw:
@@ -377,9 +378,6 @@ async def execute_node(state: AgentState, skills=None, model=None) -> dict:
 
 ## 用户原始需求
 {message}
-
-## 已确认的需求信息
-{dims_text}
 """
 
     if skills and skill_name in skills:
@@ -744,7 +742,7 @@ def _merge_dimensions_from_plan(existing: dict, extracted: dict) -> dict:
     return merged
 
 
-def _generate_fallback_questions(module: str, expressed: dict, clarify_round: int, max_q: int = 3) -> list:
+def _generate_fallback_questions(module: str, expressed: dict, clarify_round: int, max_q: int = 5) -> list:
     dims = MODULE_DIMENSIONS.get(module, {})
     _, gaps = calculate_completeness(expressed, dims)
     questions = []
@@ -762,17 +760,54 @@ def _generate_fallback_questions(module: str, expressed: dict, clarify_round: in
 def _format_clarification_message(questions: list, completeness: float, rag_context: str = "") -> str:
     lines = []
     progress_pct = int(completeness * 100)
-    if progress_pct < 30:    lines.append("我来帮你理清需求。先了解几个基本信息：\n")
-    elif progress_pct < 55:  lines.append("很好，已经了解了基础信息。再补充几个细节：\n")
-    elif progress_pct < 75:  lines.append("差不多了，最后确认几个点：\n")
-    else:                    lines.append("信息基本齐了。\n")
+    if progress_pct < 40:
+        lines.append("还差一些信息，请帮忙补充：\n")
+    elif progress_pct < 70:
+        lines.append("再确认几个细节：\n")
+    else:
+        lines.append("最后确认：\n")
+
     for i, q in enumerate(questions, 1):
         lines.append(f"**{i}.** {q['text']}")
-        if q.get("hint"): lines.append(f"   *（{q['hint']}）*")
         lines.append("")
-    if rag_context and "未找到" not in rag_context:
-        lines.append("---\n（已从知识库中找到相关资料，会在生成时参考）")
-    lines.append(f"---\n信息完整度: {progress_pct}%  |  本轮追问: {len(questions)} 个问题")
+
+    lines.append(f"（进度 {progress_pct}%）")
+    return "\n".join(lines)
+
+
+def _build_locked_block(intent: dict, dims_text: str, turn_count: int) -> str:
+    """构建 🔴 已锁定意图 + 工作记忆块 — 最高优先级，不可偏离。
+
+    这是解决意图偏移和信息遗忘的核心机制:
+      - 意图在多轮对话中不会丢失
+      - 用户已确认的需求维度形成工作记忆，跨轮持久化
+    """
+    lines = []
+
+    # ── 🔴 已锁定意图 ──
+    intent_label = intent.get("label", "")
+    intent_scene = intent.get("scene", "")
+    intent_confidence = intent.get("confidence", 0)
+
+    if intent_label:
+        lines.append("## 🔴 已锁定意图（最高优先级，不可偏离）")
+        lines.append(f"- **当前任务**: {intent_label}")
+        if intent_scene and intent_scene != intent_label:
+            lines.append(f"- **场景**: {intent_scene}")
+        if intent_confidence > 0:
+            lines.append(f"- **置信度**: {intent_confidence:.0%}")
+        lines.append("- **规则**: 以下所有回答必须围绕此意图。如果用户后续消息看似偏离，优先确认是否切换话题。")
+        lines.append("")
+
+    # ── 🔴 工作记忆（已确认的需求，不会丢失）──
+    if dims_text and dims_text != "（尚未提取到任何维度信息）":
+        lines.append("## 🔴 工作记忆（已确认的需求信息，跨轮持久化，不会丢失）")
+        lines.append(dims_text)
+        lines.append("")
+
+    if lines:
+        lines.insert(0, f"<!-- 第 {turn_count} 轮 -->")
+
     return "\n".join(lines)
 
 

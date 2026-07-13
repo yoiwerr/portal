@@ -193,7 +193,7 @@ class TestClarificationFormatting:
         output = _format_clarification_message(questions, 0.3)
         assert "你的目标是什么？" in output
         assert "什么时候完成？" in output
-        assert "信息完整度" in output
+        assert "30%" in output       # progress percentage
 
     def test_format_includes_progress(self):
         output = _format_clarification_message([], 0.5)
