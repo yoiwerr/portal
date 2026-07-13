@@ -95,11 +95,15 @@ class PGVectorStore:
         """确保所有 collection 表 + pgvector 扩展 + 索引存在。返回状态。"""
         results = {}
         try:
-            cur = self.conn.cursor()
+            # 先用裸连接启用 pgvector 扩展（register_vector 会在 self.conn 中调用，
+            # 需要扩展已存在才能成功注册）
+            raw = psycopg.connect(self.conn_string, autocommit=True)
+            try:
+                raw.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            finally:
+                raw.close()
 
-            # 启用 pgvector 扩展
-            cur.execute("CREATE EXTENSION IF NOT EXISTS vector")
-            self.conn.commit()
+            cur = self.conn.cursor()
 
             for coll_name, coll_config in self.COLLECTIONS.items():
                 dim = coll_config["embedding_dim"]
