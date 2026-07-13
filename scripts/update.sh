@@ -39,19 +39,25 @@ BRANCH=$(git branch --show-current)
 COMMIT=$(git rev-parse --short HEAD)
 echo "分支: $BRANCH | 提交: $COMMIT"
 
-# 保存当前 HEAD，用于 pull 后精确计算变更
-PREV_HEAD=$(git rev-parse HEAD)
+# 抓取远程最新，然后对比与本地 HEAD 的差异
+git fetch origin 2>/dev/null || true
 
-if ! git diff --quiet origin/"$BRANCH" 2>/dev/null; then
-    warn "本地落后于远程，请先 git pull"
+# 保存远程 ORIG，pull / merge 后 diff
+REMOTE_HEAD=$(git rev-parse origin/"$BRANCH" 2>/dev/null || echo "")
+LOCAL_HEAD=$(git rev-parse HEAD)
+
+if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ] && [ -n "$REMOTE_HEAD" ]; then
     echo ""
-    read -rp "是否现在执行 git pull? [Y/n] " ANS
+    echo "远程有新提交: $(git log --oneline "$LOCAL_HEAD".."$REMOTE_HEAD" | head -3)"
+    read -rp "是否现在 git pull? [Y/n] " ANS
     if [ "${ANS:-Y}" != "n" ] && [ "${ANS:-Y}" != "N" ]; then
         git pull
         ok "git pull 完成"
     else
         warn "跳过 git pull，使用当前代码"
     fi
+else
+    ok "已是最新"
 fi
 
 # ── 检查 .env ──
@@ -60,8 +66,8 @@ if [ ! -f .env ]; then
 fi
 
 # ── 检测哪些子项目有代码变更 ──
-# 用保存的 PREV_HEAD 而非 HEAD@{1}，避免多 commit 跳变时漏判
-CHANGED_FILES=$(git diff --name-only "$PREV_HEAD" HEAD 2>/dev/null || echo "")
+# 用 pull 前的 HEAD 对比当前 HEAD，准确捕获本次更新范围
+CHANGED_FILES=$(git diff --name-only "$LOCAL_HEAD" HEAD 2>/dev/null || echo "")
 
 rebuild_all=false
 rebuild_chatlab=false
