@@ -13,6 +13,9 @@ MakeItSpecific 工具注册表 — 4 个工具。
   系统感知 (1):
     run_shell_preview        — 只读 Shell：查看项目结构/文件     [按需]
 
+  文件写入 (1):
+    write_file               — 受限文件写入：data/exports/ 目录   [按需]
+
 调用优先级链:
   search_knowledge_base (P0 — 涉及技术选型/工具推荐/方法论时必调)
     → python_exec (需要精确计算/格式转换时)
@@ -38,13 +41,15 @@ from tools.search import search_knowledge_base
 from tools.code import python_exec
 from tools.knowledge import add_to_knowledge_base
 from tools.shell import run_shell_preview
+from tools.fs import write_file
 
-# ── 全局工具列表（4 个）──
+# ── 全局工具列表（5 个）──
 ALL_TOOLS = [
     search_knowledge_base,
     python_exec,
     add_to_knowledge_base,
     run_shell_preview,
+    write_file,
 ]
 
 # ── 按 Skill 推荐的工具子集 ──
@@ -58,10 +63,12 @@ SKILL_TOOL_MAP = {
         search_knowledge_base,
         add_to_knowledge_base,
         run_shell_preview,
+        write_file,
     ],
     "info_retention": [
         add_to_knowledge_base,
         search_knowledge_base,
+        write_file,
     ],
     "code_review": [
         run_shell_preview,
@@ -83,6 +90,9 @@ def inject_services(rag_service=None, config=None):
     search_mod._rag_service = rag_service
     knowledge_mod._rag_service = rag_service
     code_mod._config = config
+
+    from tools.fs import set_fs_tool_config
+    set_fs_tool_config(config=config)
 
 
 def get_tools_for_skill(skill_name: str):

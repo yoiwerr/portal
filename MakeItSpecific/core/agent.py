@@ -206,6 +206,13 @@ class Agent:
             memory_context=memory_context,
         )
 
+        # ── 估算输入 token: 序列化 initial_state 用 cl100k_base 计数 ──
+        input_tokens = _estimate_input_tokens(initial_state)
+        logger.info(
+            f"[Agent] start session={session_id} input_est={input_tokens} "
+            f"module={module}"
+        )
+
         full_output = ""
         token_count = 0
         final_state = None
@@ -305,11 +312,13 @@ class Agent:
 
         logger.info(
             f"[Agent] done session={session_id} tokens={token_count} "
-            f"module={module} intent={intent.get('label', '?')}"
+            f"input_est={input_tokens} module={module} intent={intent.get('label', '?')}"
         )
 
         yield {"event": "done", "data": {
-            "session_id": session_id, "message_id": 0, "tokens_used": token_count,
+            "session_id": session_id, "message_id": 0,
+            "tokens_used": token_count,
+            "input_tokens_est": input_tokens,
             "intent": intent,
         }}
 
@@ -447,3 +456,19 @@ def _safe_serialize(obj):
         return obj
     except (TypeError, ValueError):
         return str(obj)
+
+
+def _estimate_input_tokens(initial_state: dict) -> int:
+    """估算 initial_state 的 token 数 — 用字符数/因子 粗略估计。
+
+    不做精确计数（精确需要跑 tiktoken 且 LLM 的 tokenizer 不一定匹配）。
+    用途: 日志中的成本估算信号，不是计费用。
+    """
+    try:
+        import json
+        text = json.dumps(initial_state, ensure_ascii=False, default=str)
+        chars = len(text)
+        # 中文≈1.5 char/token, 英文≈4 char/token, 混合取≈2.5
+        return max(1, int(chars / 2.5))
+    except Exception:
+        return 0
