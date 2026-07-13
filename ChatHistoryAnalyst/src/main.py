@@ -218,6 +218,12 @@ async def get_imported_files():
     return {"status": "success", "imported_files": files}
 
 
+@app.get("/api/health", tags=["System"])
+async def health_check():
+    """健康检查 — nginx / update.sh 用"""
+    return {"status": "ok"}
+
+
 @app.delete("/api/v1/clear_vector_store", tags=["Memory Management"])
 async def clear_vector_store_endpoint():
     """

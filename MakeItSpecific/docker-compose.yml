@@ -15,7 +15,7 @@ services:
       # PostgreSQL (与 ChatLab 共用 pgvector/pgvector:pg16)
       PG_HOST: postgres
       PG_PORT: "5432"
-      PG_DATABASE: makeitspecific
+      PG_DATABASE: chatdemopg
       PG_USER: postgres
       PGSQLPASSWORD: ${PGSQLPASSWORD}
       # Agent
