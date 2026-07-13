@@ -163,7 +163,9 @@ class PGVectorStore:
 
             cur.close()
         except Exception as e:
-            self.conn.rollback()
+            if self._conn is not None and not self._conn.closed:
+                try: self._conn.rollback()
+                except Exception: pass
             logger.error(f"[PGVector] 表初始化失败: {e}")
             raise
         return results
@@ -450,18 +452,17 @@ class PGVectorStore:
 def build_connection_string(config) -> str:
     """从 Config 对象构建 PostgreSQL 连接字符串。
 
-    优先使用环境变量，与 ChatLab 共用 PG 实例:
-      - DB_HOST: PostgreSQL 地址 (默认 localhost)
-      - DB_PORT: 端口 (默认 5432)
-      - PGSQLPASSWORD: 密码
-      - DB_NAME: 数据库名 (默认 makeitspecific, ChatLab 用 chatdemopg)
+    与 ChatLab 共用 PG 实例。
+    Docker: PG_* 由 docker-compose 注入 → config 读取。
+    本地: DB_* 在 .env 中设置 → 优先于 config 默认值。
     """
     import os
 
-    host = getattr(config, "pg_host", None) or os.getenv("DB_HOST", "localhost")
-    port = getattr(config, "pg_port", None) or os.getenv("DB_PORT", "5432")
-    dbname = getattr(config, "pg_database", None) or os.getenv("DB_NAME", "makeitspecific")
-    user = getattr(config, "pg_user", None) or os.getenv("DB_USER", "postgres")
+    # DB_* 环境变量优先（兼容 .env），config.pg_* 兜底（Docker 注入）
+    host = os.getenv("DB_HOST") or getattr(config, "pg_host", None) or "localhost"
+    port = os.getenv("DB_PORT") or getattr(config, "pg_port", None) or "5432"
+    dbname = os.getenv("DB_NAME") or getattr(config, "pg_database", None) or "chatdemopg"
+    user = os.getenv("DB_USER") or getattr(config, "pg_user", None) or "postgres"
     password = getattr(config, "pg_password", None) or os.getenv("PGSQLPASSWORD", "")
 
     if not password:
