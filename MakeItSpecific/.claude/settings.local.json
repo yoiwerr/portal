@@ -14,7 +14,9 @@
       "Bash(rm -f //wsl.localhost/Ubuntu/home/yoiwerr/portal/MakeItSpecific/skills/resume_generator.py)",
       "Bash(git -C //wsl.localhost/Ubuntu/home/yoiwerr/portal/MakeItSpecific checkout -- prompts/system_prompts.py prompts/templates.py)",
       "Read(///wsl.localhost/Ubuntu//**)",
-      "Read(///wsl.localhost/Ubuntu/mnt/**)"
+      "Read(///wsl.localhost/Ubuntu/mnt/**)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('core/agent.py'\\).read\\(\\)\\); ast.parse\\(open\\('core/context_engine.py'\\).read\\(\\)\\); print\\('syntax OK'\\)\")",
+      "Bash(python *)"
     ]
   }
 }

@@ -206,69 +206,49 @@ class Agent:
             memory_context=memory_context,
         )
 
-        # ── 估算输入 token: 序列化 initial_state 用 cl100k_base 计数 ──
         input_tokens = _estimate_input_tokens(initial_state)
         logger.info(
             f"[Agent] start session={session_id} input_est={input_tokens} "
             f"module={module}"
         )
 
-        full_output = ""
-        token_count = 0
-        final_state = None
+        # ── 用 ainvoke 而非 astream_events ──
+        # astream_events 只能捕获外层图节点的 LLM 事件（planner/router 等），
+        # execute_node 内部 create_react_agent 是子图，其 token 不会冒泡上来。
+        # 因此用 ainvoke 拿最终结果，再由 SSE 事件一次性推送完整输出。
+        output = ""
+        intent = {}
+        new_clarify_round = clarify_round
+        new_dims = dimensions or {}
+        completeness = 0.0
+        tool_results = []
 
         try:
-            async for event in self.graph.astream_events(initial_state, version="v2"):
-                kind = event.get("event", "")
+            result = await self.graph.ainvoke(initial_state)
 
-                if kind == "on_chat_model_stream":
-                    chunk = event.get("data", {}).get("chunk", None)
-                    if chunk and hasattr(chunk, "content") and chunk.content:
-                        token_text = chunk.content
-                        full_output += token_text
-                        token_count += 1
-                        yield {"event": "token", "data": {
-                            "content": token_text, "token_index": token_count,
-                        }}
-
-                elif kind == "on_tool_start":
-                    yield {"event": "tool_start", "data": {
-                        "tool_name": event.get("name", "unknown"),
-                        "tool_input": _safe_serialize(event.get("data", {}).get("input", {})),
-                    }}
-
-                elif kind == "on_tool_end":
-                    yield {"event": "tool_end", "data": {
-                        "tool_name": event.get("name", "unknown"),
-                        "tool_output": str(event.get("data", {}).get("output", ""))[:500],
-                    }}
+            output = result.get("output", "")
+            intent = result.get("intent", {})
+            plan = result.get("plan", {})
+            new_clarify_round = result.get("clarify_round", clarify_round)
+            new_dims = result.get("expressed_dimensions", dimensions or {})
+            completeness = plan.get("completeness", 0.0)
+            tool_results = result.get("tool_results", []) or []
 
         except Exception as e:
-            logger.error(f"[Agent] Stream 失败: {e}", exc_info=True)
+            logger.error(f"[Agent] Graph 执行失败: {e}", exc_info=True)
             yield {"event": "error", "data": {"detail": str(e)}}
             return
 
-        output = full_output
-        new_clarify_round = clarify_round
-        new_dims = dimensions or {}
-        intent = {}
-        completeness = 0
-
-        # 从 state 取 output（clarify 节点不走 LLM stream，full_output 为空）
-        try:
-            raw_state = self.graph.get_state(initial_state)
-            if raw_state:
-                final_values = raw_state.values if hasattr(raw_state, "values") else raw_state
-                state_output = final_values.get("output", "")
-                if state_output:
-                    output = state_output
-                new_clarify_round = final_values.get("clarify_round", clarify_round)
-                new_dims = final_values.get("expressed_dimensions", {})
-                intent = final_values.get("intent", {})
-                plan = final_values.get("plan", {})
-                completeness = plan.get("completeness", 0)
-        except Exception:
-            pass
+        # ── 推送工具调用事件（如果有的话）──
+        for tr in tool_results:
+            yield {"event": "tool_start", "data": {
+                "tool_name": tr.get("name", "unknown"),
+                "tool_input": _safe_serialize(tr.get("args", {})),
+            }}
+            yield {"event": "tool_end", "data": {
+                "tool_name": tr.get("name", "unknown"),
+                "tool_output": "",
+            }}
 
         if output:
             if new_clarify_round > clarify_round:
@@ -294,12 +274,12 @@ class Agent:
                 )
                 yield {"event": "execute", "data": {
                     "type": "execute", "skill": module, "module": module,
-                    "message": output, "tool_calls_made": 0,
+                    "message": output, "tool_calls_made": len(tool_results),
                 }}
                 # ── 会话结束时自动摘要 ──
                 await self._summarize_on_complete(session_id, output, intent)
 
-        # ── 三层上下文更新：每轮对话后更新 L2 摘要 + 提取 L3 事实 ──
+        # ── 三层上下文更新 ──
         try:
             messages = self.sessions.get_conversation(session_id)
             await self.context_engine.update_after_turn(
@@ -311,13 +291,13 @@ class Agent:
             logger.warning(f"[ContextEngine] 更新失败 (非关键): {e}")
 
         logger.info(
-            f"[Agent] done session={session_id} tokens={token_count} "
+            f"[Agent] done session={session_id} len={len(output)} "
             f"input_est={input_tokens} module={module} intent={intent.get('label', '?')}"
         )
 
         yield {"event": "done", "data": {
             "session_id": session_id, "message_id": 0,
-            "tokens_used": token_count,
+            "tokens_used": len(output),
             "input_tokens_est": input_tokens,
             "intent": intent,
         }}

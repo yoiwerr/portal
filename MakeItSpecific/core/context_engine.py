@@ -22,6 +22,7 @@ Context Engine — 三层对话上下文管理（V3）。
     await engine.update_after_turn(messages, session_id, turn_output)
 """
 
+import json
 import hashlib
 import logging
 import re
@@ -197,7 +198,7 @@ class ContextEngine:
         await self._update_summary(messages, turn_count, turn_output)
 
         # ── L3: 提取并存储原子事实 ──
-        self._extract_and_store_facts(messages, session_id, turn_count)
+        await self._extract_and_store_facts(messages, session_id, turn_count)
 
     # ============================================================
     # L2: 滚动摘要（增量更新）
@@ -273,6 +274,11 @@ class ContextEngine:
           - keyword 重叠率 ≥ 20% → 同一话题，不切换
         """
         if turn_count <= 1:
+            return False
+
+        # 早期对话（≤4 轮）仍在澄清需求，不检测话题切换
+        # — keyword 不重叠大概率是因为细节还没说全，不是真的换话题
+        if turn_count <= 4:
             return False
 
         if not self._running_summary:
@@ -371,14 +377,18 @@ class ContextEngine:
 
         prompt = self.L3_EXTRACT_PROMPT.format(last_turn_text=text[:1500])
 
-        structured_model = self.model.bind(response_format={"type": "json_object"})
+        try:
+            structured_model = self.model.bind(response_format={"type": "json_object"})
+        except Exception:
+            structured_model = self.model
+
         response = await structured_model.ainvoke([
             SystemMessage(content="你是信息提取器。只输出 JSON，不要其他内容。"),
             HumanMessage(content=prompt),
         ])
 
-        data = json.loads(response.content)
-        raw_facts = data.get("facts", [])
+        data = _safe_parse_json(response.content)
+        raw_facts = data.get("facts", []) if isinstance(data, dict) else []
 
         facts = []
         for f in raw_facts:
@@ -727,6 +737,32 @@ def _extract_atomic_facts(text: str) -> list[str]:
             unique.append(f.strip())
 
     return unique[:10]
+
+
+def _safe_parse_json(content: str) -> dict:
+    """健壮的 JSON 解析 — 处理 markdown 代码块包裹、模型额外文本等。"""
+    try:
+        return json.loads(content)
+    except json.JSONDecodeError:
+        pass
+
+    # 尝试提取 ```json ... ``` 代码块
+    match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', content, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1))
+        except json.JSONDecodeError:
+            pass
+
+    # 尝试提取第一个 { ... } 块
+    match = re.search(r'\{.*\}', content, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError(f"无法从 LLM 输出中解析 JSON: {content[:200]}...")
 
 
 def _extract_query_keywords(query: str) -> list[str]:

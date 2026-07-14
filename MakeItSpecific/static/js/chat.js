@@ -128,6 +128,8 @@
         case 'session':
           sessionId = data.session_id;
           setMeta(data.model || '');
+          var exportBtn = document.getElementById('exportBtn');
+          if (exportBtn) exportBtn.disabled = false;
           break;
 
         case 'token':
@@ -186,12 +188,14 @@
   };
 
   /* ═══════════════════════════════════════════════════════
-     New Session
+     New Session / Export
      ═══════════════════════════════════════════════════════ */
   window.newSession = function () {
     sessionId = null;
     clarifyRound = 0;
     dimensions = {};
+    var exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) exportBtn.disabled = true;
     var win = document.getElementById('chatWindow');
     win.innerHTML =
       '<div class="landing" id="landing">' +
@@ -224,6 +228,11 @@
     setStatus('新会话');
     setMeta('');
     document.getElementById('userInput').focus();
+  };
+
+  window.exportSession = function () {
+    if (!sessionId) return;
+    window.open('api/sessions/' + sessionId + '/export', '_blank');
   };
 
   /* ═══════════════════════════════════════════════════════
@@ -304,6 +313,23 @@
       '<div class="msg-content">' + body + '</div>';
 
     if (role === 'assistant') {
+      // 检测文件路径，添加下载按钮
+      var fileMatch = content.match(/路径:\s*(.+?\.(md|txt|json|csv))\b/);
+      if (fileMatch) {
+        var filePath = fileMatch[1];
+        var filename = filePath.replace(/\\/g, '/').split('/').pop();
+        var contentEl = div.querySelector('.msg-content');
+        if (contentEl) {
+          var dlWrap = document.createElement('div');
+          dlWrap.className = 'download-row';
+          dlWrap.innerHTML =
+            '<a class="download-btn" href="api/files/download?path=' +
+            encodeURIComponent(filename) + '" download="' + filename + '">' +
+            '📥 下载 ' + filename + '</a>';
+          contentEl.appendChild(dlWrap);
+        }
+      }
+
       var fb = document.createElement('div');
       fb.className = 'feedback-row';
       fb.innerHTML =
@@ -360,6 +386,21 @@
       var cursor = contentEl.querySelector('.cursor-blink');
       if (cursor) cursor.remove();
     }
+
+    // 检测 Agent 写入的文件路径，自动添加下载按钮
+    var fileMatch = content.match(/路径:\s*(.+?\.(md|txt|json|csv))\b/);
+    if (fileMatch && contentEl) {
+      var filePath = fileMatch[1];
+      var filename = filePath.replace(/\\/g, '/').split('/').pop();
+      var dlWrap = document.createElement('div');
+      dlWrap.className = 'download-row';
+      dlWrap.innerHTML =
+        '<a class="download-btn" href="api/files/download?path=' +
+        encodeURIComponent(filename) + '" download="' + filename + '">' +
+        '📥 下载 ' + filename + '</a>';
+      contentEl.appendChild(dlWrap);
+    }
+
     // Feedback
     var fb = document.createElement('div');
     fb.className = 'feedback-row';

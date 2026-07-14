@@ -1,12 +1,16 @@
 """
 会话管理接口。
 
-GET  /api/sessions        — 历史会话列表
-GET  /api/sessions/{id}   — 会话详情
-DELETE /api/sessions/{id} — 删除会话
+GET  /api/sessions            — 历史会话列表
+GET  /api/sessions/{id}       — 会话详情
+GET  /api/sessions/{id}/export — 导出会话为 Markdown 文件
+DELETE /api/sessions/{id}     — 删除会话
 """
 
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 
 from models.schemas import SessionSummary, SessionDetail, ChatMessage
 
@@ -87,3 +91,29 @@ async def delete_session(session_id: str):
 
     _agent.sessions.delete_session(session_id)
     return {"ok": True, "deleted": session_id}
+
+
+@router.get("/{session_id}/export")
+async def export_session(session_id: str):
+    """导出完整会话为 Markdown 文件并触发浏览器下载。"""
+    if _agent is None:
+        raise HTTPException(status_code=503, detail="Agent 未初始化")
+
+    session = _agent.sessions.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="会话不存在")
+
+    try:
+        file_path_str = _agent.export_session(session_id)
+        file_path = Path(file_path_str)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导出失败: {str(e)}")
+
+    if not file_path.exists():
+        raise HTTPException(status_code=500, detail="导出文件生成失败")
+
+    return FileResponse(
+        path=str(file_path.resolve()),
+        filename=file_path.name,
+        media_type="text/markdown; charset=utf-8",
+    )

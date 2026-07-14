@@ -28,7 +28,7 @@ def set_tool_services(rag_service=None, **kwargs):
 
 
 @tool
-def search_knowledge_base(query: str) -> str:
+async def search_knowledge_base(query: str) -> str:
     """
     【用途】从本地知识库 (PGVector) 向量检索领域知识，返回结构化 JSON。
 
@@ -68,7 +68,7 @@ def search_knowledge_base(query: str) -> str:
         }, ensure_ascii=False)
 
     try:
-        data = _rag_service.query_structured(query, top_k=3)
+        data = await _rag_service.query_structured(query, top_k=3)
         return json.dumps(data, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.error(f"[Tool] search_knowledge_base 失败: {e}")

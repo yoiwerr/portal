@@ -310,6 +310,28 @@ body {
 }
 .feedback-tag:hover { border-color: var(--fg-soft); color: var(--fg-soft); }
 
+/* ── Download Button ──────────────────────────────────── */
+.download-row {
+  margin-top: 0.4rem;
+}
+.download-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.7rem;
+  color: var(--fg-soft);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.25rem 0.55rem;
+  transition: all 0.15s;
+}
+.download-btn:hover {
+  border-color: var(--fg-soft);
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+
 /* Tool chips in streaming */
 .tool-indicators {
   margin-top: 0.4rem;
@@ -406,6 +428,29 @@ body {
 }
 
 .hint-left  { }
+.hint-center {
+  display: flex;
+  gap: 0.5rem;
+}
+.hint-center button {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--fg-dim);
+  font-size: 0.58rem;
+  padding: 0.1rem 0.45rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+.hint-center button:hover:not(:disabled) {
+  border-color: var(--fg-soft);
+  color: var(--fg-soft);
+}
+.hint-center button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
 .hint-right { font-family: 'SF Mono', 'Consolas', monospace; font-size: 0.58rem; }
 
 /* ── Scrollbar ───────────────────────────────────────── */

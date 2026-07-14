@@ -35,7 +35,7 @@ from services.vector_store import PGVectorStore, build_connection_string
 from services.rag_service import RAGService
 from core.llm_client import create_model
 from core.agent import Agent
-from routers import chat, sessions, knowledge, feedback
+from routers import chat, sessions, knowledge, feedback, files
 
 ss = None; rag = None; agent = None
 
@@ -98,7 +98,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="MakeItSpecific", version="3.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-app.include_router(chat.router); app.include_router(sessions.router); app.include_router(knowledge.router); app.include_router(feedback.router)
+app.include_router(chat.router); app.include_router(sessions.router); app.include_router(knowledge.router); app.include_router(feedback.router); app.include_router(files.router)
 
 STATIC = ROOT / "static"
 

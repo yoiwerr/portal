@@ -66,6 +66,10 @@
     </div>
     <div class="input-hint">
       <span class="hint-left" id="statusLine">就绪</span>
+      <span class="hint-center">
+        <button id="exportBtn" title="导出当前会话为 Markdown" onclick="exportSession()" disabled>📄 导出会话</button>
+        <button id="newSessionBtn" title="开始新会话" onclick="newSession()">＋ 新会话</button>
+      </span>
       <span class="hint-right" id="metaLine"></span>
     </div>
   </div>
