@@ -77,7 +77,8 @@ async def lifespan(app: FastAPI):
         await rag.ensure_ready()
         stats = await rag.get_kb_stats()
         print(f"  KB: {stats['source_files']} files, {stats['chunk_count']} chunks")
-        if stats['source_files'] > 0:
+        if stats['source_files'] > 0 and stats['chunk_count'] == 0:
+            print("  首次运行，开始索引知识库...")
             await rag.ingest_knowledge_base()
 
         model = create_model(config)
