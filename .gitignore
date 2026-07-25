@@ -30,3 +30,5 @@ pgdata/
 # Debug logs
 *.log
 inf.txt
+
+MakeItSpecific/docs/
