@@ -1,6 +1,6 @@
 # 日志管理指南
 
-> 如何阅读、管理和使用 MakeItSpecific 的日志
+> 如何阅读、管理和使用 Alfred 的日志
 
 ## 1. 日志架构
 
@@ -165,6 +165,6 @@ volumes:
 
 查看容器内日志：
 ```bash
-docker exec -it specific-api cat /app/data/logs/app.log
-docker exec -it specific-api tail -100 /app/data/logs/app.log
+docker exec -it alfred-api cat /app/data/logs/app.log
+docker exec -it alfred-api tail -100 /app/data/logs/app.log
 ```

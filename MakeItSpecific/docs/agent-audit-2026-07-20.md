@@ -1,4 +1,4 @@
-# MakeItSpecific Agent 审计报告
+# Alfred Agent 审计报告
 
 > 2026-07-20 | 基于 V3 架构的全面审计
 
@@ -212,7 +212,7 @@ Explore Agent 在全面审计中发现了以下文档与代码的偏差：
 
 **此外：**
 - Skills 在 execute_node 中被绕过——execute_node 用 `create_react_agent()` 直接创建 ReAct agent，只在 ReAct 无输出时才 fallback 到 `_execute_legacy_skill()`，意味着 skill 实例大部分时候是死代码
-- `config.py` 的 `from_env()` 读 `.env` 路径为 `Path(__file__).resolve().parent.parent / ".env"`（MakeItSpecific 的上级目录），看起来是期望 `.env` 在 portal 根目录
+- `config.py` 的 `from_env()` 读 `.env` 路径为 `Path(__file__).resolve().parent.parent / ".env"`（Alfred 的上级 Portal 目录），看起来是期望 `.env` 在 Portal 根目录
 
 ---
 
@@ -271,7 +271,7 @@ Explore Agent 在全面审计中发现了以下文档与代码的偏差：
 ## 5. 差距量化
 
 ```
-维度              MakeItSpecific        企业级要求              差距           优先级
+维度              Alfred                  企业级要求              差距           优先级
 ──────────────────────────────────────────────────────────────────────────────────
 可观测性          日志+文件轮转           全链路 Tracing+Metrics   🔴 从零建       P0
 评估体系          25单测+5集成测          自动化 Eval Pipeline     🔴 从零建       P0
@@ -343,7 +343,7 @@ RAG 管道          混合检索+Rerank         业界先进水平             �
 | `routers/chat.py` | SSE 流式标签不实 | 用 `stream_mode="messages"` 捕获子图 token |
 | `core/agent.py:220` | 子图 token 不冒泡 | LangGraph 新版本可能已支持，升级验证 |
 | `tools/shell.py` | `shell=True` | 改用 `shell=False` + 列表参数 |
-| `config.py:8` | `.env` 路径读上级目录 | 确认是否正确，可能是 portal 层设计的 |
+| `config.py:8` | `.env` 路径读上级目录 | 确认是否正确，可能是 Portal 层设计的 |
 | `app.py:100` | CORS `*` | 改为环境变量配置的域名白名单 |
 | `skills/*.py` | 大部分是死代码 | 要么集成进 execute_node，要么删除 |
 | `CLAUDE.md` | 多处与实际代码不一致 | 全文审计并更新 |
@@ -351,4 +351,4 @@ RAG 管道          混合检索+Rerank         业界先进水平             �
 
 ---
 
-*本报告基于 2026-07-20 对 `MakeItSpecific` V3 代码库的完整审计。*
+*本报告基于 2026-07-20 对 `Alfred` V3 代码库的完整审计。*

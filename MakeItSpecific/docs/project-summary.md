@@ -1,4 +1,4 @@
-# MakeItSpecific — 项目总结
+# Alfred — 项目总结
 
 > AI 工作流增强 Agent · 把模糊想法变成可执行方案
 > 个人项目 · 2026-06 ~ 至今

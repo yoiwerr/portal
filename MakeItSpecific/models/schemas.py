@@ -1,5 +1,5 @@
 """
-MakeItSpecific Pydantic 请求/响应模型。
+Alfred Pydantic 请求/响应模型。
 
 参照 ChatLab src/schemas.py 的结构，适配工作流增强领域。
 V2: 新增 token 级 streaming 事件模型 + 工具调用事件。

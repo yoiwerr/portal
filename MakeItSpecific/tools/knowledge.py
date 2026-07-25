@@ -1,5 +1,5 @@
 """
-MakeItSpecific Agent Tool — 知识持久化。
+Alfred Agent Tool — 知识持久化。
 
 add_to_knowledge_base : 将对话中提炼的有价值知识写入 PGVector 向量库。
                        写入后立即可通过 search_knowledge_base 检索到。

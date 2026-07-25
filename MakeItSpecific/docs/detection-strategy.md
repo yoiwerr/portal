@@ -74,13 +74,13 @@ WHERE f.rating = 'negative';
 
 ### 2.1 核心原则
 
-**你自己的日常任务全部用 MakeItSpecific。** 写提示词 → prompt_refiner。规划任务 → work_arranger。整理文档 → info_retention。审查代码 → code_review。每天至少用 5 次。
+**你自己的日常任务全部用 Alfred。** 写提示词 → prompt_refiner。规划任务 → work_arranger。整理文档 → info_retention。审查代码 → code_review。每天至少用 5 次。
 
 ### 2.2 具体做法
 
 | 场景 | 用什么 Skill | 怎么评估 |
 |------|-------------|---------|
-| 写 Portal 的新功能 PRD | work_arranger | 输出的任务拆解合理吗？时间估算准吗？ |
+| 写 Alfred 的新功能 PRD | work_arranger | 输出的任务拆解合理吗？时间估算准吗？ |
 | 给新 feature 写提示词 | prompt_refiner | 生成的提示词实际拿去用了吗？效果好吗？ |
 | 整理一次技术讨论 | info_retention | 文档能直接发给别人看吗？ |
 | 审查自己刚写的代码 | code_review | 发现了自己没注意到的问题吗？误报多吗？ |
@@ -137,15 +137,15 @@ WHERE f.rating = 'negative';
 # scripts/healthcheck.sh — 放到 crontab
 HEALTH=$(curl -sf http://localhost/specific/api/health)
 if [ $? -ne 0 ]; then
-    echo "[ALERT] specific-api down at $(date)" >> /var/log/portal-alerts.log
+    echo "[ALERT] alfred-api down at $(date)" >> /var/log/alfred-alerts.log
 fi
 
 # Token 异常检测
-RECENT=$(docker compose logs --tail=50 specific-api 2>/dev/null)
+RECENT=$(docker compose logs --tail=50 alfred-api 2>/dev/null)
 if echo "$RECENT" | grep -q "\[ERROR\]"; then
     ERROR_COUNT=$(echo "$RECENT" | grep -c "\[ERROR\]")
     if [ $ERROR_COUNT -gt 3 ]; then
-        echo "[ALERT] $ERROR_COUNT errors in last 50 log lines at $(date)" >> /var/log/portal-alerts.log
+        echo "[ALERT] $ERROR_COUNT errors in last 50 log lines at $(date)" >> /var/log/alfred-alerts.log
     fi
 fi
 ```
@@ -157,7 +157,7 @@ fi
 import psycopg
 from datetime import datetime, timedelta
 
-conn = psycopg.connect("host=localhost dbname=chatdemopg user=postgres ...")
+conn = psycopg.connect("host=localhost dbname=alfred user=postgres ...")
 
 # 过去 24h 的反馈
 cur = conn.cursor()

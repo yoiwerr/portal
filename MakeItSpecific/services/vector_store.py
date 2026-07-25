@@ -71,7 +71,7 @@ class PGVectorStore:
         """
         Args:
             connection_string: PostgreSQL 连接串
-               格式: host=localhost port=5432 dbname=makeitspecific user=postgres password=xxx
+               格式: host=localhost port=5432 dbname=alfred user=postgres password=xxx
         """
         self.conn_string = connection_string
         self._conn: Optional[psycopg.Connection] = None

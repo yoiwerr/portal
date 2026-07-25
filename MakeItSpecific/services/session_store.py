@@ -30,7 +30,7 @@ class SessionStore:
         """
         Args:
             conn_string: PostgreSQL 连接串 (与 PGVectorStore 共用同一个 PG 实例)
-              格式: host=localhost port=5432 dbname=makeitspecific user=postgres password=xxx
+              格式: host=localhost port=5432 dbname=alfred user=postgres password=xxx
         """
         self.conn_string = conn_string
         self._conn: Optional[psycopg.Connection] = None

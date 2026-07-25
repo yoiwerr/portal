@@ -21,7 +21,7 @@
 ### 1.1 存在哪
 
 ```
-MakeItSpecific/
+Alfred/
 └── data/
     └── logs/
         ├── app.log        ← 当前日志（单文件最大 5MB）
@@ -38,8 +38,8 @@ MakeItSpecific/
 
 **Docker 看**：
 ```bash
-docker exec -it specific-api cat /app/data/logs/app.log
-docker exec -it specific-api tail -100 /app/data/logs/app.log
+docker exec -it alfred-api cat /app/data/logs/app.log
+docker exec -it alfred-api tail -100 /app/data/logs/app.log
 ```
 
 ### 1.2 日志格式
@@ -444,7 +444,7 @@ Badcase
 ```
 "服务挂了 / 页面打不开"
    → docker compose ps（容器还在吗？）
-   → docker compose logs specific-api | tail -50（最后 50 行有什么？）
+   → docker compose logs alfred-api | tail -50（最后 50 行有什么？）
    → grep "\[ERROR\]" data/logs/app.log | tail -20（最新的错误是什么？）
    → curl http://localhost:8001/api/health（API 还活着吗？）
 
@@ -517,11 +517,11 @@ Badcase
 
 ```bash
 # 终端 1：跑服务
-cd ~/portal/MakeItSpecific
+cd ~/portal/Alfred
 python app.py
 
 # 终端 2：实时 tail 日志
-cd ~/portal/MakeItSpecific
+cd ~/portal/Alfred
 tail -f data/logs/app.log
 
 # 终端 3：偶尔查看统计
@@ -538,17 +538,17 @@ cd ~/portal
 # 看所有容器状态
 docker compose ps
 
-# 看 MakeItSpecific 实时日志
-docker compose logs -f specific-api
+# 看 Alfred 实时日志
+docker compose logs -f alfred-api
 
 # 看最近 100 行
-docker compose logs --tail=100 specific-api
+docker compose logs --tail=100 alfred-api
 
 # 只过滤错误
-docker compose logs specific-api 2>&1 | grep -E "\[ERROR\]|\[WARNING\]"
+docker compose logs alfred-api 2>&1 | grep -E "\[ERROR\]|\[WARNING\]"
 
 # 进入容器直接操作
-docker exec -it specific-api bash
+docker exec -it alfred-api bash
 # 进去后:
 #   cat /app/data/logs/app.log          — 完整日志
 #   tail -100 /app/data/logs/app.log    — 最近 100 行

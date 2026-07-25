@@ -13,7 +13,7 @@ def _get_test_conn_string():
     return (
         f"host={os.getenv('DB_HOST', 'localhost')} "
         f"port={os.getenv('DB_PORT', '5432')} "
-        f"dbname={os.getenv('DB_NAME', 'makeitspecific')} "
+        f"dbname={os.getenv('DB_NAME', 'alfred')} "
         f"user={os.getenv('DB_USER', 'postgres')} "
         f"password={os.getenv('PGSQLPASSWORD', '')}"
     )

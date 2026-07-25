@@ -1,1 +1,1 @@
-"""MakeItSpecific Pydantic 数据模型。"""
+"""Alfred Pydantic 数据模型。"""

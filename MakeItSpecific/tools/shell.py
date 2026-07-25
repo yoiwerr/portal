@@ -1,5 +1,5 @@
 """
-MakeItSpecific Agent Tool — 只读 Shell 预览。
+Alfred Agent Tool — 只读 Shell 预览。
 
 run_shell_preview : 执行白名单只读命令，用于查看项目结构、配置、日志等。
 """

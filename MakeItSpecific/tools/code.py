@@ -1,5 +1,5 @@
 """
-MakeItSpecific Agent Tool — Python 代码沙箱执行。
+Alfred Agent Tool — Python 代码沙箱执行。
 
 python_exec : 在隔离环境中执行 Python 代码片段，返回 stdout/stderr。
              需要 SANDBOX_ENABLED=true 才启用。

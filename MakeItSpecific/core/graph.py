@@ -1,5 +1,5 @@
 """
-MakeItSpecific LangGraph 图定义 — V4 ReAct Agentic Loop + Router + 多 Agent Panel。
+Alfred LangGraph 图定义 — V4 ReAct Agentic Loop + Router + 多 Agent Panel。
 
 图的执行流程:
   START → router (意图识别) → enrich → rag

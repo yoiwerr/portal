@@ -1,5 +1,5 @@
 """
-MakeItSpecific Agent Tool — 知识库检索。
+Alfred Agent Tool — 知识库检索。
 
 search_knowledge_base : PGVector 向量检索本地知识库。
 

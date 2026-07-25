@@ -2,7 +2,7 @@
 
 > 驾驭工程 (Harness Engineering)：不只是写好 prompt，而是设计一套**系统性的约束和控制机制**，让 AI Agent 在复杂多轮对话中不跑偏、不编造、不遗忘、不失控。
 >
-> 阅读对象：想理解 AI Agent 可控性设计的人。本文从概念到实践，用 MakeItSpecific 项目的真实设计决策作为案例。
+> 阅读对象：想理解 AI Agent 可控性设计的人。本文从概念到实践，用 Alfred 项目的真实设计决策作为案例。
 
 ---
 
@@ -128,7 +128,7 @@ LLM 的本质是 next-token prediction。它看到你的 prompt，然后预测�
   适用: 企业 Agent、需要跨轮记忆的任务
 ```
 
-MakeItSpecific 选择的是 **策略 C（混合分层）**，但做了简化——三层结构：
+Alfred 选择的是 **策略 C（混合分层）**，但做了简化——三层结构：
 
 ```
 L1 原始窗口    最近 3 轮完整原文          零 LLM 调用    🟡 注入 Prompt
@@ -197,7 +197,7 @@ Context Engineering 设计决策清单:
 
 ### 3.1 工具不是越多越好
 
-这是 MakeItSpecific 项目最重要的教训之一。最初有 12 个工具，后来砍到 5 个。砍削的原则：
+这是 Alfred 项目最重要的教训之一。最初有 12 个工具，后来砍到 5 个。砍削的原则：
 
 ```
 被砍的工具              砍掉的原因                        替代方案
@@ -338,7 +338,7 @@ LLM 对 Prompt 不同位置的注意力分布是不均匀的：
 
 ### 4.4 Checkpoint：给模型配一个"监工"
 
-这是 MakeItSpecific V3 的关键创新。传统的 Planner→Executor→Reflector 流水线有个问题：Reflector 在最后才检查，如果 Executor 一开始就跑偏了，中间所有工作都是浪费。
+这是 Alfred V3 的关键创新。传统的 Planner→Executor→Reflector 流水线有个问题：Reflector 在最后才检查，如果 Executor 一开始就跑偏了，中间所有工作都是浪费。
 
 ```
 传统:

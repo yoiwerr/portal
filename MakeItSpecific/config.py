@@ -5,8 +5,9 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
-# 仅读取项目根目录的 .env（独立部署，不依赖 Portal）
-load_dotenv(Path(__file__).resolve().parent / ".env")
+# 优先读 Portal 父级 .env（部署环境），回退到项目根 .env（本地开发）
+_env = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(_env if _env.exists() else Path(__file__).resolve().parent / ".env")
 
 
 @dataclass

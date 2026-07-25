@@ -31,7 +31,7 @@ class BaseSkill(ABC):
 
     与 ChatLab skills/ 的对应关系：
       ChatLab: skill01_imitate.py → execute_imitate_skill(request)
-      MakeItSpecific: prompt_refiner.py → PromptRefiner().execute(context, llm)
+      Alfred: prompt_refiner.py → PromptRefiner().execute(context, llm)
     """
 
     name: str = ""            # 唯一标识符

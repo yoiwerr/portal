@@ -1,5 +1,5 @@
 """
-MakeItSpecific 核心层。
+Alfred 核心层。
 
 Agent 框架: LangGraph (core/graph.py + core/agent.py)
 推理引擎: SGLang → ChatOpenAI (core/llm_client.py)

@@ -14,7 +14,7 @@ LLM 不是按字符/字数计费，而是按 **token**。一个 token 约等于�
 
 粗略换算：**1K tokens ≈ 750 英文单词 ≈ 500-700 个中文字**
 
-## 2. MakeItSpecific 的 Token 流向
+## 2. Alfred 的 Token 流向
 
 一次用户对话中，Token 被消耗在以下节点。不是每个节点每轮都触发：
 
@@ -106,7 +106,7 @@ print(f"本次: input={input_tokens} output={output_tokens} total={input_tokens+
 # 启用 LangSmith 追踪（需 API Key）
 export LANGCHAIN_TRACING_V2=true
 export LANGCHAIN_API_KEY=ls__xxx
-export LANGCHAIN_PROJECT=makeitspecific
+export LANGCHAIN_PROJECT=alfred
 ```
 
 所有 LangChain 调用自动上报，可以在 Web UI 看到每步的 Token 消耗。
@@ -161,7 +161,7 @@ logger.info(f"[Agent] done session={session_id} tokens={token_count} intent={int
 | GPT-4o | 128K tokens |
 | GPT-4o-mini | 128K tokens |
 
-### 5.2 MakeItSpecific 的上下文构成
+### 5.2 Alfred 的上下文构成
 
 每轮 Executor 的输入由以下部分拼接：
 

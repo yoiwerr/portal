@@ -1,5 +1,5 @@
 """
-MakeItSpecific Agent Tool — 文件写入。
+Alfred Agent Tool — 文件写入。
 
 write_file : 将内容写入指定目录下的文件。
              限制: 只能写 .md/.txt/.json/.csv/.py/.html/.css/.js。
