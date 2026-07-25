@@ -1,7 +1,6 @@
 """
 Skill 抽象基类。
 
-参照 ChatLab 的 LangChain Agent 模式，同时保留原有的 ModuleContext。
 所有 Skill 继承 BaseSkill，实现 execute() 方法。
 """
 
@@ -28,10 +27,6 @@ class BaseSkill(ABC):
 
     新 Skill 继承此基类，实现 execute() 方法即可。
     内部使用 LangChain Agent + Tools 模式调用 LLM。
-
-    与 ChatLab skills/ 的对应关系：
-      ChatLab: skill01_imitate.py → execute_imitate_skill(request)
-      Alfred: prompt_refiner.py → PromptRefiner().execute(context, llm)
     """
 
     name: str = ""            # 唯一标识符

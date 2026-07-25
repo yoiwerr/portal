@@ -19,11 +19,11 @@
 | **Agent 引擎** | LangGraph StateGraph + create_react_agent | 8 节点有状态图 |
 | **LLM Provider** | DashScope (Qwen) / DeepSeek / OpenAI / Local | 装饰器注册模式，auto 自动选 |
 | **向量存储** | PostgreSQL + PGVector (pg16) | IVFFlat 索引 + GIN 全文检索 |
-| **Embedding** | DashScope text-embedding-v4 (1024维) | 与 ChatLab 共用 |
+| **Embedding** | DashScope text-embedding-v4 (1024维) | SaaS API |
 | **Rerank** | 百炼 qwen3-rerank | Cross-Encoder 精排 |
 | **会话存储** | PostgreSQL (psycopg 3) | sessions + messages + feedback 表 |
 | **前端** | Vanilla HTML/CSS/JS | 暗色主题，SSE token 流式渲染 |
-| **部署** | Docker Compose + nginx 反代 | 与 ChatLab 共用 PG 容器 |
+| **部署** | Docker Compose + nginx 反代 | 独立 alfred 数据库 |
 
 ---
 

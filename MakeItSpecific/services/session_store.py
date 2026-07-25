@@ -1,7 +1,7 @@
 """
 PostgreSQL 会话 + 消息 + 反馈持久化。
 
-替代旧的 SQLite 实现。与 PGVector 共用同一个 PostgreSQL 实例。
+Alfred 独立数据库 — 与 PGVectorStore 共用同一 alfred 库。
 所有方法为同步（psycopg 3 sync 模式），在 async 上下文中由 Agent 直接调用。
 
 表:
@@ -24,12 +24,20 @@ logger = logging.getLogger(__name__)
 
 
 class SessionStore:
-    """会话、消息、反馈的 PostgreSQL 存储。"""
+    """会话、消息、反馈的 PostgreSQL 存储。
+
+    使用 Alfred 独立数据库，与 PGVectorStore 共用同一个 alfred 库。
+
+    表:
+      sessions — 会话元数据
+      messages — 对话消息 (FK → sessions)
+      feedback — 用户反馈 (👍👎)
+    """
 
     def __init__(self, conn_string: str):
         """
         Args:
-            conn_string: PostgreSQL 连接串 (与 PGVectorStore 共用同一个 PG 实例)
+            conn_string: PostgreSQL 连接串
               格式: host=localhost port=5432 dbname=alfred user=postgres password=xxx
         """
         self.conn_string = conn_string

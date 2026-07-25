@@ -1,8 +1,8 @@
 """
-PGVector 向量存储 — 替代 ChromaDB。
+PGVector 向量存储。
 
-与 ChatLab 共用 pgvector/pgvector:pg16 容器。
-Embedding 生成: DashScope text-embedding-v4 (1024维)，与 ChatLab 一致。
+Alfred 独立数据库 — alfred 库，不与 Portal 其它项目共享。
+Embedding 生成: DashScope text-embedding-v4 (1024维)。
 
 用法:
     store = PGVectorStore(connection_string)
@@ -517,13 +517,13 @@ class PGVectorStore:
 def build_connection_string(config) -> str:
     """从 Config 对象构建 PostgreSQL 连接字符串。
 
-    与 ChatLab 共用 PG 实例。
+    目标数据库: alfred（独立，不与 Portal 其它项目共享实例级 DB）。
+    本地: 读取 Portal 父级 .env 中的 PGSQLPASSWORD。
     Docker: PG_* 由 docker-compose 注入 → config 读取。
-    本地: DB_* 在 .env 中设置 → 优先于 config 默认值。
     """
     import os
 
-    # DB_* 环境变量优先（兼容 .env），config.pg_* 兜底（Docker 注入）
+    # DB_* 环境变量优先（兼容 .env），config.pg_* 兜底
     host = os.getenv("DB_HOST") or getattr(config, "pg_host", None) or "localhost"
     port = os.getenv("DB_PORT") or getattr(config, "pg_port", None) or "5432"
     dbname = os.getenv("DB_NAME") or getattr(config, "pg_database", None) or "alfred"
@@ -533,7 +533,7 @@ def build_connection_string(config) -> str:
     if not password:
         raise ValueError(
             "PGSQLPASSWORD 环境变量未设置。"
-            "请设置 PostgreSQL 密码（与 ChatLab 共用同一个 PG 实例）。\n"
+            "请在 Portal 父级 .env 或项目 .env 中设置 PGSQLPASSWORD。\n"
             "本地开发: 在 .env 中设置 PGSQLPASSWORD\n"
             "Docker 部署: docker-compose 自动注入"
         )

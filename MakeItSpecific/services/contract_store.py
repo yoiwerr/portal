@@ -1,7 +1,7 @@
 """
 PostgreSQL 任务契约持久化。
 
-与 SessionStore 共用同一个 PostgreSQL 实例。
+Alfred 独立数据库 — 与 SessionStore 共用同一 alfred 库。
 提供契约的创建、读取、更新、版本历史查询。
 
 表: task_contracts — 契约 JSONB + 元数据
