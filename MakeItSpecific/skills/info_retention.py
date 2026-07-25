@@ -3,10 +3,10 @@ Skill 3: 信息留存（Info Retention）
 
 流程: 用户加载 MD 文件 → 注入上下文 → Agent 整理为结构化文档。
 
-参照 ChatLab skill03_atmosphere.py 的 LangChain Agent 模式。
+使用 LangGraph prebuilt create_react_agent + 工具调用。
 """
 
-from langchain.agents import create_agent
+from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from skills.base import BaseSkill, SkillContext
@@ -29,7 +29,7 @@ class InfoRetention(BaseSkill):
 
     async def execute(self, context: SkillContext, model) -> str:
         """
-        使用 LangChain Agent 整理并生成留存文档。
+        使用 LangGraph ReAct Agent 整理并生成留存文档。
 
         Agent 可以调用 search_knowledge_base 获取相关知识，
         调用 add_to_knowledge_base 留存整理后的文档。
@@ -55,15 +55,20 @@ class InfoRetention(BaseSkill):
 请按照系统提示词中的格式要求，将以上信息整理为结构化文档。
 包含核心信息摘要、详细内容、关键决策点、下次使用提示和时效性标注。"""
 
-        agent = create_agent(
-            model=model,
-            tools=get_tools_for_skill(self.name),
-            system_prompt=INFO_RETENTION_SYSTEM,
+        tools = get_tools_for_skill(self.name)
+        agent = create_react_agent(
+            model=model.bind_tools(tools, parallel_tool_calls=True),
+            tools=tools,
+            prompt=INFO_RETENTION_SYSTEM,
         )
         result = await agent.ainvoke({
             "messages": [SystemMessage(content=INFO_RETENTION_SYSTEM), HumanMessage(content=user_prompt)]
         })
-        return result["messages"][-1].content
+        output_messages = result.get("messages", [])
+        for m in reversed(output_messages):
+            if hasattr(m, "content") and m.content:
+                return m.content
+        return ""
 
     def get_input_placeholder(self) -> str:
         return (

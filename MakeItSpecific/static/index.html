@@ -3,78 +3,170 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MakeItSpecific — AI 工作流增强 Agent</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<title>阿福 AFU — AI 协作管家</title>
+<link rel="icon" href="source/alfred.jpg">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<div class="app">
+<!-- ═══════════ 全局顶部栏（跨三列） ═══════════ -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="topbar-brand">
+      <span class="topbar-name">阿福 Alfred</span>
+      <span class="topbar-subtitle">AI 协作管家</span>
+    </div>
+    <span class="topbar-status">
+      <span class="status-dot"></span>
+      <span class="status-text">随时为您整理思路</span>
+    </span>
+  </div>
+  <div class="topbar-right">
+    <button class="btn-outline" id="btnImport" onclick="openModal('modalImport')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <span>读入项目记忆</span>
+    </button>
+  </div>
+</header>
 
-  <!-- 对话区 -->
-  <div class="chat-window" id="chatWindow">
-    <div class="landing" id="landing">
-      <h1>MakeItSpecific</h1>
-      <p class="subtitle">AI 工作流增强助手 — 直接对话，无需选模块</p>
+<!-- ═══════════ 三列主体（CSS Grid） ═══════════ -->
+<div class="app-body">
 
-      <!-- 三个功能提示框 -->
-      <div class="feature-cards">
-        <div class="feature-card">
-          <div class="feature-num">01</div>
-          <h3>提示词工程</h3>
-          <p>大白话进来，追问补全后输出 2-3 个优化版提示词，匹配最佳模型。</p>
-          <div class="feature-example">
-            <span>试试看：</span>
-            <code>帮我写一个生成产品文案的提示词，面向年轻人的潮牌服饰</code>
+  <!-- ── 左列：任务契约 20% ── -->
+  <aside class="contract-sidebar" id="contractSidebar">
+    <div class="contract-header">
+      <span class="contract-header-title">任务契约</span>
+    </div>
+    <div class="contract-body" id="contractBody">
+      <div class="contract-empty" id="contractEmpty">
+        <p class="contract-empty-text">阿福会在对话中<br>逐步整理任务契约</p>
+      </div>
+      <div class="contract-card" id="contractCard" style="display:none;">
+        <div class="cc-section">
+          <div class="cc-label">目标</div>
+          <div class="cc-value cc-goal" id="ccGoal"></div>
+        </div>
+        <div class="cc-section">
+          <div class="cc-label">范围</div>
+          <div class="cc-scope-grid">
+            <div class="cc-scope-in">
+              <div class="cc-scope-tag">要做</div>
+              <ul class="cc-list" id="ccScopeIn"></ul>
+            </div>
+            <div class="cc-scope-out">
+              <div class="cc-scope-tag cc-scope-tag-out">不做</div>
+              <ul class="cc-list" id="ccScopeOut"></ul>
+            </div>
           </div>
         </div>
-
-        <div class="feature-card">
-          <div class="feature-num">02</div>
-          <h3>工作安排</h3>
-          <p>模糊想法 → 追问目的/范围/时间 → 结构化工作计划 + 任务拆解 + 时间线。</p>
-          <div class="feature-example">
-            <span>试试看：</span>
-            <code>我想用 React 写一个管理后台，大概 50 人使用，三个月搞定</code>
+        <div class="cc-section" id="ccConstraintsSection">
+          <div class="cc-label">约束</div>
+          <ul class="cc-list" id="ccConstraints"></ul>
+        </div>
+        <div class="cc-section" id="ccAcceptanceSection">
+          <div class="cc-label">验收标准</div>
+          <ul class="cc-list cc-list-check" id="ccAcceptance"></ul>
+        </div>
+        <div class="cc-section" id="ccRisksSection">
+          <div class="cc-label">风险边界</div>
+          <ul class="cc-list cc-list-warn" id="ccRisks"></ul>
+        </div>
+        <div class="cc-section" id="ccDeliverablesSection">
+          <div class="cc-label">交付物</div>
+          <div class="cc-value cc-meta" id="ccDeliverables"></div>
+        </div>
+        <div class="cc-confidence">
+          <div class="cc-confidence-label">
+            <span>契约完整度</span>
+            <span class="cc-confidence-pct" id="ccConfPct">0%</span>
+          </div>
+          <div class="cc-confidence-bar">
+            <div class="cc-confidence-fill" id="ccConfBar" style="width:0%"></div>
           </div>
         </div>
-
-        <div class="feature-card">
-          <div class="feature-num">03</div>
-          <h3>信息留存</h3>
-          <p>对话 + 文件 → 追问格式/用途 → 结构化 Markdown 文档，下次可加载继续。</p>
-          <div class="feature-example">
-            <span>试试看：</span>
-            <code>帮我把这次讨论的技术选型决策整理成文档，方便下次回顾</code>
-          </div>
+        <div class="cc-actions" id="ccActions">
+          <button class="cc-btn cc-btn-confirm" id="ccBtnConfirm" onclick="confirmContract()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>确认契约</span>
+          </button>
+          <button class="cc-btn cc-btn-modify" id="ccBtnModify" onclick="modifyContract()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <span>修改</span>
+          </button>
+        </div>
+        <div class="cc-status" id="ccStatus">
+          <span class="cc-status-badge draft">草稿</span>
         </div>
       </div>
     </div>
+  </aside>
+
+  <!-- ── 中列：主对话区 70% ── -->
+  <div class="main-area">
+    <main class="chat-area" id="chatArea">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-avatar">
+          <img src="source/alfred.jpg" alt="阿福">
+        </div>
+        <h2 class="empty-greeting">晚上好，我是阿福。</h2>
+        <p class="empty-hint">告诉我您现在想完成什么，我会陪您把思路整理清楚。</p>
+        <div class="example-questions">
+          <button class="example-btn" onclick="useExample('我有一个项目想法，但不知道从哪里开始')">我有一个项目想法，但不知道从哪里开始</button>
+          <button class="example-btn" onclick="useExample('帮我整理一份交给 Claude 的任务说明')">帮我整理一份交给 Claude 的任务说明</button>
+          <button class="example-btn" onclick="useExample('继续上一次项目工作')">继续上一次项目工作</button>
+        </div>
+      </div>
+      <div class="messages" id="messages" style="display:none;"></div>
+    </main>
+
+    <footer class="composer">
+      <div class="composer-box">
+        <button class="composer-attach" title="附件（暂未开放）">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+        </button>
+        <textarea id="userInput"
+          placeholder="告诉阿福，您现在想完成什么……"
+          rows="1"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"></textarea>
+        <button class="composer-send" id="sendBtn" onclick="sendMessage()" title="发送">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+        </button>
+      </div>
+      <p class="composer-hint">阿福会先理解您的目标，再陪您整理下一步。</p>
+    </footer>
   </div>
 
-  <!-- 输入区 -->
-  <div class="input-area" id="inputArea">
-    <div class="input-row">
-      <textarea id="userInput"
-        placeholder="输入你的需求…（Enter 发送，Shift+Enter 换行）"
-        rows="1"
-        onkeydown="handleKey(event)"
-        oninput="autoResize(this)"></textarea>
-      <button id="sendBtn" onclick="sendMessage()">
-        <span class="send-arrow">→</span>
-      </button>
+  <!-- ── 右列：对话导航 10% ── -->
+  <nav class="turn-nav" id="turnNav">
+    <div class="turn-nav-header">
+      <span class="turn-nav-title">对话导航</span>
     </div>
-    <div class="input-hint">
-      <span class="hint-left" id="statusLine">就绪</span>
-      <span class="hint-center">
-        <button id="exportBtn" title="导出当前会话为 Markdown" onclick="exportSession()" disabled>📄 导出会话</button>
-        <button id="newSessionBtn" title="开始新会话" onclick="newSession()">＋ 新会话</button>
-      </span>
-      <span class="hint-right" id="metaLine"></span>
+    <div class="turn-nav-list" id="turnNavList"></div>
+  </nav>
+
+</div><!-- /app-body -->
+
+<!-- ═══════════ 弹窗 ═══════════ -->
+<div class="modal-overlay" id="modalImport" onclick="closeModalBg(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <h3 class="modal-title">读入项目交接卡</h3>
+    <p class="modal-body">上传之前下载的交接卡文件（.md 或 .json），阿福会自动恢复上次的工作状态。</p>
+    <div class="modal-upload" id="uploadArea" ondrop="handleDrop(event)" ondragover="handleDragOver(event)">
+      <input type="file" id="fileInput" accept=".md,.json" onchange="handleFileSelect(event)" style="display:none;">
+      <div class="modal-upload-icon">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </div>
+      <p class="modal-upload-text">拖拽文件到此处，或<span class="modal-upload-link" onclick="document.getElementById('fileInput').click()">点击选择</span></p>
+      <p class="modal-upload-hint" id="uploadHint">支持 .md / .json 格式</p>
+    </div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel" onclick="closeModal('modalImport')">取消</button>
+      <button class="modal-btn" id="btnDoImport" onclick="doImport()" disabled>导入</button>
     </div>
   </div>
-
 </div>
+
 
 <script src="js/chat.js"></script>
 </body>

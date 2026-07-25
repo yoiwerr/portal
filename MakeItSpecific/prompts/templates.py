@@ -325,3 +325,153 @@ def calculate_completeness(expressed: dict, dimensions: dict) -> tuple:
     completeness = covered_weight / total_weight if total_weight > 0 else 0
     gaps.sort(key=lambda g: (not g["is_required"], -g["weight"]))
     return completeness, gaps
+
+
+# ============================================================
+# 任务契约格式化 — 用于注入 Execute / Checkpoint / Reflector
+# ============================================================
+
+def format_contract_for_executor(contract: dict) -> str:
+    """将任务契约格式化为 Executor System Prompt 的注入块。
+
+    注意: contract 可以是 Pydantic model_dump() 的 dict，
+    也可以是 Planner JSON 中的嵌套 dict。
+    """
+    if not contract:
+        return ""
+
+    scope = contract.get("scope", {})
+    perms = contract.get("permissions", {})
+    deliverables = contract.get("deliverables", {})
+
+    lines = ["## 📋 当前任务契约（执行的唯一边界）", ""]
+
+    # goal
+    goal = contract.get("goal", "")
+    if goal:
+        lines.append(f"**目标**: {goal}")
+        lines.append("")
+
+    # scope
+    scope_in = scope.get("in", scope.get("in_", []))
+    scope_out = scope.get("out", [])
+    if scope_in or scope_out:
+        if scope_in:
+            lines.append(f"**要做**: {' | '.join(scope_in)}")
+        if scope_out:
+            lines.append(f"**❌ 不要做**: {' | '.join(scope_out)}")
+        lines.append("")
+
+    # constraints
+    constraints = contract.get("constraints", [])
+    if constraints:
+        lines.append("**硬约束（不可违反）**:")
+        for c in constraints:
+            lines.append(f"- 🔒 {c}")
+        lines.append("")
+
+    # acceptance
+    acceptance = contract.get("acceptance", [])
+    if acceptance:
+        lines.append("**验收标准（完成前逐条自查）**:")
+        for a in acceptance:
+            lines.append(f"- ☐ {a}")
+        lines.append("")
+
+    # risks
+    risks = contract.get("risks", [])
+    if risks:
+        lines.append("**⚠️ 风险边界（触及必须暂停并询问）**:")
+        for r in risks:
+            lines.append(f"- 🛑 {r}")
+        lines.append("")
+
+    # permissions
+    if perms:
+        _read = perms.get("read", "project")
+        _write = perms.get("write", "ask")
+        _execute = perms.get("execute", "ask")
+        lines.append(f"**权限**: 读={_read} | 写={_write} | 执行={_execute}")
+        lines.append("")
+
+    # deliverables
+    fmt = deliverables.get("format", "")
+    artifacts = deliverables.get("artifacts", [])
+    if fmt or artifacts:
+        if fmt:
+            lines.append(f"**交付格式**: {fmt}")
+        if artifacts:
+            lines.append(f"**交付物**: {', '.join(artifacts)}")
+        lines.append("")
+
+    # confidence
+    conf = contract.get("confidence", 0)
+    if conf:
+        icon = "✅" if conf >= 0.75 else "🤔" if conf >= 0.4 else "❓"
+        lines.append(f"**契约完整度**: {icon} {conf:.0%}")
+
+    return "\n".join(lines)
+
+
+def format_contract_for_checkpoint(contract: dict) -> str:
+    """从契约中提取 Checkpoint 审核专用的关键字段。"""
+    if not contract:
+        return ""
+
+    lines = []
+    goal = contract.get("goal", "")
+    if goal:
+        lines.append(f"契约目标: {goal}")
+
+    scope = contract.get("scope", {})
+    scope_out = scope.get("out", [])
+    if scope_out:
+        lines.append(f"契约禁止范围: {', '.join(scope_out)}")
+
+    acceptance = contract.get("acceptance", [])
+    if acceptance:
+        lines.append("契约验收标准:")
+        for a in acceptance:
+            lines.append(f"  - {a}")
+
+    constraints = contract.get("constraints", [])
+    if constraints:
+        lines.append(f"契约硬约束: {'; '.join(constraints)}")
+
+    return "\n".join(lines)
+
+
+def map_contract_to_dimensions(contract: dict) -> dict:
+    """将 TaskContract 映射回 expressed_dimensions 格式（向后兼容）。
+
+    在完全迁移前，旧节点仍然依赖 expressed_dimensions。
+    """
+    if not contract:
+        return {}
+
+    dims = {}
+    goal = contract.get("goal", "")
+    confidence = contract.get("confidence", 0.5)
+
+    if goal:
+        dims["purpose"] = goal
+        dims["purpose_confidence"] = confidence
+
+    scope = contract.get("scope", {})
+    scope_in = scope.get("in", scope.get("in_", []))
+    if scope_in:
+        dims["scope"] = ", ".join(scope_in)
+        dims["scope_confidence"] = confidence
+
+    constraints = contract.get("constraints", [])
+    if constraints:
+        dims["constraints"] = "; ".join(constraints)
+        dims["constraints_confidence"] = confidence
+
+    deliverables = contract.get("deliverables", {})
+    artifacts = deliverables.get("artifacts", [])
+    if artifacts:
+        dims["deliverables"] = ", ".join(artifacts)
+        dims["deliverables_confidence"] = confidence
+
+    return dims

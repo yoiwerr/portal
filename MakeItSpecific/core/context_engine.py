@@ -22,6 +22,7 @@ Context Engine — 三层对话上下文管理（V3）。
     await engine.update_after_turn(messages, session_id, turn_output)
 """
 
+import asyncio
 import json
 import hashlib
 import logging
@@ -120,7 +121,8 @@ class ContextEngine:
         self.embedding_fn = embedding_fn        # embedding 函数 (可选)
 
         # ── 运行时状态 ──
-        self._running_summary: str = ""         # L2 滚动摘要
+        self._lock = asyncio.Lock()                       # 并发保护锁
+        self._running_summaries: dict[str, str] = {}     # L2 滚动摘要 {session_id: summary}
         self._fact_store: dict[str, list[str]] = {}      # L3 内存后备 {session_id: [事实列表]}
         self._fact_timestamps: dict[str, list[int]] = {} # L3 事实时间戳
 
@@ -148,12 +150,16 @@ class ContextEngine:
         messages = session_store.get_conversation(session_id)
         ctx.turn_count = _count_turns(messages)
 
+        # ── 新会话: 重置该 session 的 L2 摘要 ──
+        if ctx.turn_count <= 1 and session_id in self._running_summaries:
+            self._running_summaries.pop(session_id, None)
+
         # ── 主题切换检测: 换话题时重置 L2 摘要 ──
-        if self._detect_topic_switch(current_message, ctx.turn_count):
+        if self._detect_topic_switch(current_message, ctx.turn_count, session_id):
             logger.info(
                 f"[ContextEngine] 检测到话题切换 (会话 {session_id}, 轮次 {ctx.turn_count})"
             )
-            self._running_summary = ""
+            self._running_summaries[session_id] = ""
             # 清空该会话的内存 L3 事实（旧话题偏好不污染新话题）
             if session_id in self._fact_store:
                 self._fact_store[session_id] = []
@@ -162,8 +168,8 @@ class ContextEngine:
         # ── L1: 最近 3 轮原文 ──
         ctx.l1_raw = _format_recent_history(messages, max_turns=self.L1_MAX_TURNS)
 
-        # ── L2: 滚动摘要 ──
-        ctx.l2_summary = self._running_summary
+        # ── L2: 滚动摘要（按 session 隔离）──
+        ctx.l2_summary = self._running_summaries.get(session_id, "")
 
         # ── L3: 语义事实检索（异步, PGVector + 内存后备）──
         ctx.l3_facts = await self._retrieve_facts(session_id, current_message)
@@ -195,7 +201,7 @@ class ContextEngine:
             return  # 第一轮不需要摘要
 
         # ── L2: 增量更新滚动摘要 ──
-        await self._update_summary(messages, turn_count, turn_output)
+        await self._update_summary(messages, session_id, turn_count, turn_output)
 
         # ── L3: 提取并存储原子事实 ──
         await self._extract_and_store_facts(messages, session_id, turn_count)
@@ -204,7 +210,7 @@ class ContextEngine:
     # L2: 滚动摘要（增量更新）
     # ============================================================
 
-    async def _update_summary(self, messages: list, turn_count: int, turn_output: str):
+    async def _update_summary(self, messages: list, session_id: str, turn_count: int, turn_output: str):
         """增量更新 L2 滚动摘要。
 
         不重建全部历史，而是「旧摘要 + 本轮新内容 → 新摘要」。
@@ -216,7 +222,7 @@ class ContextEngine:
         if not new_turns_text.strip():
             return
 
-        old_summary = self._running_summary or "（这是对话的开始）"
+        old_summary = self._running_summaries.get(session_id, "") or "（这是对话的开始）"
         max_chars = self.max_summary_tokens * 3  # 粗略: 1 token ≈ 3 字符（中文约 1.5）
 
         prompt = (
@@ -245,8 +251,9 @@ class ContextEngine:
             if len(summary) > max_chars * 2:
                 summary = summary[:max_chars] + "..."
 
-            self._running_summary = summary
-            self._last_summary_turn = turn_count
+            async with self._lock:
+                self._running_summaries[session_id] = summary
+                self._last_summary_turn = turn_count
 
             logger.info(
                 f"[ContextEngine] L2 摘要更新: {turn_count} 轮, "
@@ -259,7 +266,7 @@ class ContextEngine:
     # 主题切换检测
     # ============================================================
 
-    def _detect_topic_switch(self, current_message: str, turn_count: int) -> bool:
+    def _detect_topic_switch(self, current_message: str, turn_count: int, session_id: str) -> bool:
         """检测用户是否切换了话题，需要重置 L2 摘要。
 
         两级检测:
@@ -281,7 +288,8 @@ class ContextEngine:
         if turn_count <= 4:
             return False
 
-        if not self._running_summary:
+        running_summary = self._running_summaries.get(session_id, "")
+        if not running_summary:
             return False
 
         # ── L1 快检: keyword 重叠率 ──
@@ -290,13 +298,13 @@ class ContextEngine:
             return False
 
         # 从 L2 摘要中提取关键词
-        summary_keywords = set(_extract_query_keywords(self._running_summary))
+        summary_keywords = set(_extract_query_keywords(running_summary))
         all_old_keywords = summary_keywords
 
-        # 也从 L3 事实中提取（如果有内存后备数据）
-        for sid, facts in self._fact_store.items():
-            for fact in facts[-20:]:  # 最多取最近 20 条
-                all_old_keywords |= set(_extract_query_keywords(fact))
+        # 也从当前会话的 L3 事实中提取（如果有内存后备数据）
+        session_facts = self._fact_store.get(session_id, [])
+        for fact in session_facts[-20:]:  # 最多取最近 20 条
+            all_old_keywords |= set(_extract_query_keywords(fact))
 
         if not all_old_keywords:
             return False
@@ -361,10 +369,10 @@ class ContextEngine:
                 await self._persist_facts_to_pg(session_id, turn_count, facts)
             except Exception as e:
                 logger.warning(f"[ContextEngine] L3 PGVector 写入失败，降级内存: {e}")
-                self._store_facts_memory(session_id, turn_count, facts)
+                await self._store_facts_memory(session_id, turn_count, facts)
         else:
             # 后备: 内存字典
-            self._store_facts_memory(session_id, turn_count, facts)
+            await self._store_facts_memory(session_id, turn_count, facts)
 
         logger.info(
             f"[ContextEngine] L3 累计事实: 会话 {session_id} → "
@@ -422,24 +430,28 @@ class ContextEngine:
             ids=[fact_id],
         )
 
-    def _store_facts_memory(self, session_id: str, turn_count: int, facts: list[str]):
+    async def _store_facts_memory(self, session_id: str, turn_count: int, facts: list[str]):
         """后备: 存入内存字典。"""
-        if session_id not in self._fact_store:
-            self._fact_store[session_id] = []
-            self._fact_timestamps[session_id] = []
+        async with self._lock:
+            if session_id not in self._fact_store:
+                self._fact_store[session_id] = []
+                self._fact_timestamps[session_id] = []
 
-        existing = set(self._fact_store[session_id])
-        for fact in facts:
-            fact_key = fact.strip().lower()
-            if fact_key not in existing:
-                self._fact_store[session_id].append(fact.strip())
-                self._fact_timestamps[session_id].append(turn_count)
-                existing.add(fact_key)
+            existing = set(self._fact_store[session_id])
+            for fact in facts:
+                fact_key = fact.strip().lower()
+                if fact_key not in existing:
+                    self._fact_store[session_id].append(fact.strip())
+                    self._fact_timestamps[session_id].append(turn_count)
+                    existing.add(fact_key)
 
-        # 清理超过 50 条的旧事实（TTL 改为数量限制）
-        if len(self._fact_store[session_id]) > 50:
-            self._fact_store[session_id] = self._fact_store[session_id][-50:]
-            self._fact_timestamps[session_id] = self._fact_timestamps[session_id][-50:]
+            # 清理超过 50 条的旧事实（TTL 改为数量限制）
+            if len(self._fact_store[session_id]) > 50:
+                self._fact_store[session_id] = self._fact_store[session_id][-50:]
+                self._fact_timestamps[session_id] = self._fact_timestamps[session_id][-50:]
+
+            # ── LRU 驱逐旧会话（最多缓存 500 个会话）──
+            self._evict_old_sessions_locked(max_sessions=500)
 
     async def _retrieve_facts(self, session_id: str, query: str) -> str:
         """从 L3 事实库中召回相关事实。
@@ -507,6 +519,42 @@ class ContextEngine:
         lines = ["以下是从此前对话中召回的语义事实：", ""]
         for score, fact in top:
             lines.append(f"- {fact}")
+        return "\n".join(lines)
+
+    # ============================================================
+    # 会话清理 — 防止内存泄漏
+    # ============================================================
+
+    async def cleanup_session(self, session_id: str):
+        """删除会话时调用：清理该会话的所有内存缓存。"""
+        async with self._lock:
+            self._running_summaries.pop(session_id, None)
+            self._fact_store.pop(session_id, None)
+            self._fact_timestamps.pop(session_id, None)
+
+    def _evict_old_sessions_locked(self, max_sessions: int = 200):
+        """LRU 驱逐（须在已持有 _lock 时调用）。"""
+        """LRU 驱逐：当缓存 session 数超过阈值时，删除最旧的条目。
+        在每次新会话写入时调用（非阻塞，O(1)）。
+        """
+        total = len(self._fact_store)
+        if total <= max_sessions:
+            return
+        to_remove = total - max_sessions
+        # 按 fact_timestamps 中最旧的时间戳排序（最小时间戳 = 最旧）
+        oldest = sorted(
+            self._fact_timestamps.keys(),
+            key=lambda sid: (self._fact_timestamps[sid][-1]
+                             if self._fact_timestamps.get(sid) else 0),
+        )
+        for sid in oldest[:to_remove]:
+            self._running_summaries.pop(sid, None)
+            self._fact_store.pop(sid, None)
+            self._fact_timestamps.pop(sid, None)
+
+    # ============================================================
+    # 注入
+    # ============================================================
         return "\n".join(lines)
 
     # ============================================================

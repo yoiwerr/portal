@@ -8,9 +8,11 @@ Skill 4: 代码审查（Code Review）
   - 用 run_shell_preview 读取目标文件
   - 用 search_knowledge_base 检索相关最佳实践
   - LLM 逐文件/逐区域分析，输出问题列表 + 改进建议
+
+使用 LangGraph prebuilt create_react_agent + 工具调用。
 """
 
-from langchain.agents import create_agent
+from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from skills.base import BaseSkill, SkillContext
@@ -33,7 +35,7 @@ class CodeReview(BaseSkill):
 
     async def execute(self, context: SkillContext, model) -> str:
         """
-        使用 LangChain Agent 审查代码。
+        使用 LangGraph ReAct Agent 审查代码。
 
         Agent 可以调用 run_shell_preview 读取代码文件，
         调用 search_knowledge_base 检索最佳实践。
@@ -60,15 +62,20 @@ class CodeReview(BaseSkill):
 如果用户指定了文件路径，先用 run_shell_preview 读取文件内容。
 审查完成后输出结构化报告。"""
 
-        agent = create_agent(
-            model=model,
-            tools=get_tools_for_skill(self.name),
-            system_prompt=CODE_REVIEW_SYSTEM,
+        tools = get_tools_for_skill(self.name)
+        agent = create_react_agent(
+            model=model.bind_tools(tools, parallel_tool_calls=True),
+            tools=tools,
+            prompt=CODE_REVIEW_SYSTEM,
         )
         result = await agent.ainvoke({
             "messages": [SystemMessage(content=CODE_REVIEW_SYSTEM), HumanMessage(content=user_prompt)]
         })
-        return result["messages"][-1].content
+        output_messages = result.get("messages", [])
+        for m in reversed(output_messages):
+            if hasattr(m, "content") and m.content:
+                return m.content
+        return ""
 
     def get_input_placeholder(self) -> str:
         return (

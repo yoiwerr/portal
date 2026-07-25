@@ -1,16 +1,16 @@
 """
-MakeItSpecific LangGraph 图定义 — V2 ReAct Agentic Loop + Router。
+MakeItSpecific LangGraph 图定义 — V4 ReAct Agentic Loop + Router + 多 Agent Panel。
 
 图的执行流程:
-  START → router (意图识别)
+  START → router (意图识别) → enrich → rag
               │
               ▼
-          rag → planner (LLM 提取维度 + 判断完整度)
-              ├→ clarify (生成追问 → END)
-              └→ execute (ReAct tool calling loop)
-                      └→ reflect (质量检查)
-                              ├→ 不够好 → 回 executor
-                              └→ 通过 → END
+          planner (LLM 提取维度 + 判断完整度)
+              ├→ clarify (追问 → END)
+              └→ engineering_check (工程规范)
+                      ├→ 阻断 → END
+                      ├→ 触发多Agent → multi_agent_execute → reflect → END
+                      └→ 正常 → execute → checkpoint → reflect → END
 """
 
 import json
@@ -29,6 +29,9 @@ from prompts.templates import (
     calculate_completeness,
     get_dimension_hint,
     get_clarification_templates,
+    format_contract_for_executor,
+    format_contract_for_checkpoint,
+    map_contract_to_dimensions,
 )
 from prompts.system_prompts import (
     PLANNER_SYSTEM_PROMPT,
@@ -42,12 +45,15 @@ from prompts.system_prompts import (
 
 logger = logging.getLogger(__name__)
 
-# ── 常量 ──
+# ── 常量（默认值，可被 config 覆写）──
 MAX_REFLECTION_RETRIES = 2
 DEFAULT_MAX_TOOL_ROUNDS = 10
-CLARIFY_THRESHOLD = 0.75
-MAX_CLARIFY_ROUNDS = 3
+DEFAULT_CLARIFY_THRESHOLD = 0.75
+DEFAULT_MAX_CLARIFY_ROUNDS = 3
 MAX_CHECKPOINT_RETRIES = 1     # checkpoint 失败最多重试 1 次
+
+# ── 运行时阈值（create_graph 中从 config 覆写）──
+max_clarify_rounds = DEFAULT_MAX_CLARIFY_ROUNDS
 
 
 # ============================================================
@@ -103,6 +109,11 @@ class AgentState(TypedDict):
     l3_facts: str                 # L3: 从历史召回的语义事实
     last_turn_summary: str        # 上轮用户问了什么 + AI 做了什么
     turn_count: int               # 当前对话轮数
+    # ── 工程规范 ──
+    engineering_context: str      # 工程规范建议（注入执行上下文）
+    # ── 多 Agent ──
+    multi_agent_perspectives: dict   # 三立场 Agent 原始输出
+    multi_agent_synthesis: str       # 阿福整合的结构化对比
     # ── Planner 升级: checkpoint ──
     checkpoint_feedback: str      # Planner 中途检查的语义修正意见
     checkpoint_retry_count: int   # checkpoint→execute 重试次数 (独立于 reflection)
@@ -282,6 +293,38 @@ async def planner_node(state: AgentState, model=None, rag_service=None) -> dict:
 
     new_dims = _merge_dimensions_from_plan(existing_dims, plan.get("extracted_dimensions", {}))
 
+    # ── 任务契约: 使用 TaskContract.from_planner_json 解析并验证 ──
+    try:
+        from models.task_contract import TaskContract
+        tc = TaskContract.from_planner_json(plan, session_id="")
+        contract = tc.model_dump(by_alias=True, mode="json")
+    except Exception:
+        # Pydantic 不可用时手动构建
+        contract = plan.get("contract", {})
+        if not contract:
+            contract = {
+                "goal": plan.get("goal", ""),
+                "confidence": plan.get("completeness", 0.0),
+                "scope": {"in": [], "out": []},
+                "constraints": [], "acceptance": [], "risks": [],
+                "permissions": {"read": "project", "write": "ask", "execute": "ask", "api": [], "shell": []},
+                "deliverables": {"format": "代码改动", "artifacts": []},
+            }
+            extracted_dims = plan.get("extracted_dimensions", {})
+            for key, info in extracted_dims.items():
+                val = info.get("value", "") if isinstance(info, dict) else str(info)
+                if not val: continue
+                if key == "constraints": contract["constraints"].append(val)
+                elif key in ("scope", "project_purpose", "purpose"): contract["scope"]["in"].append(val)
+                elif key == "deliverables": contract["deliverables"]["artifacts"].append(val)
+            contract["confidence"] = plan.get("completeness", 0.0)
+        # 确保 missing_fields 从 plan 同步到 contract
+        contract.setdefault("missing_fields", plan.get("missing_fields", plan.get("missing_info", [])))
+        contract.setdefault("contract_id", f"tc_{session_id or 'new'}")
+
+    # 将 contract 存入 plan，后续节点通过 plan["contract"] 访问
+    plan["contract"] = contract
+
     rag_updated = state.get("rag_context", "")
     if rag_service and not rag_updated:
         try:
@@ -307,12 +350,17 @@ async def clarify_node(state: AgentState, model=None) -> dict:
     expressed = state.get("expressed_dimensions", {})
     completeness = plan.get("completeness", 0.0)
     rag_context = state.get("rag_context", "")
+    contract = plan.get("contract", {})
 
+    # ── 优先从 contract.missing_fields 生成追问 ──
     questions = plan.get("clarify_questions", [])
+    if not questions and contract:
+        questions = _generate_contract_questions(contract, clarify_round)
     if not questions:
         questions = _generate_fallback_questions(module, expressed, clarify_round)
 
-    output = _format_clarification_message(questions, completeness, rag_context)
+    # 注入 contract 上下文到追问消息
+    output = _format_clarification_message(questions, completeness, rag_context, contract)
 
     return {
         "output": output,
@@ -398,10 +446,20 @@ async def execute_node(state: AgentState, skills=None, model=None) -> dict:
     if completed:
         progress_text = f"\n## 📍 执行进度（第 {execute_round} 轮）\n已完成步骤: {', '.join(completed)}\n如果上述步骤的结果仍然有效，不要重复执行——直接从下一步继续。"
 
+    # ── 任务契约注入 ──
+    contract = plan.get("contract", {})
+    contract_block = format_contract_for_executor(contract) if contract else ""
+
+    # ── 工程规范注入 ──
+    eng_context = state.get("engineering_context", "")
+    if eng_context:
+        contract_block = eng_context + "\n" + contract_block
+
     full_system_prompt = f"""{skill_system}
 
 {EXECUTOR_SYSTEM_PROMPT}{progress_text}
 {exec_context_block}
+{contract_block}
 ## 当前任务的上下文
 - 目标: {plan.get('goal', '完成用户请求')}
 - 执行步骤: {json.dumps(plan.get('execution_plan', []), ensure_ascii=False)}
@@ -484,6 +542,7 @@ async def checkpoint_node(state: AgentState, model=None) -> dict:
     """
     output = state.get("output", "")
     plan = state.get("plan", {})
+    contract = plan.get("contract", {})
     message = _get_last_user_message(state)
     rag_context = state.get("rag_context", "")
     checkpoint_retry_count = state.get("checkpoint_retry_count", 0)
@@ -514,6 +573,9 @@ async def checkpoint_node(state: AgentState, model=None) -> dict:
 
 ## Planner 设定的原始目标
 {plan.get('goal', '完成用户请求')}
+
+## 任务契约
+{format_contract_for_checkpoint(contract) or '（无契约约束）'}
 
 ## 执行进度
 已完成步骤: {', '.join(state.get('completed_steps', []) or []) or '（无记录）'}
@@ -566,6 +628,7 @@ async def checkpoint_node(state: AgentState, model=None) -> dict:
 async def reflect_node(state: AgentState, model=None) -> dict:
     output = state.get("output", "")
     plan = state.get("plan", {})
+    contract = plan.get("contract", {})
     message = _get_last_user_message(state)
     rag_context = state.get("rag_context", "")
     reflection_count = state.get("reflection_count", 0)
@@ -592,13 +655,16 @@ async def reflect_node(state: AgentState, model=None) -> dict:
 ## 期望完成的目标
 {plan.get('goal', '完成用户请求')}
 
+## 任务契约
+{format_contract_for_checkpoint(contract) or '（无契约约束）'}
+
 ## 知识库参考（判断技术声明是否有依据）
 {rag_brief}
 
 ## 实际输出（前 2000 字符）
 {output[:2000]}
 
-请评估这段输出是否满足用户需求。输出 JSON。"""
+请评估这段输出是否满足用户需求和契约约束。输出 JSON。"""
 
         structured_model = model.bind(response_format={"type": "json_object"})
         response = await structured_model.ainvoke([
@@ -621,14 +687,162 @@ async def reflect_node(state: AgentState, model=None) -> dict:
 
 
 # ============================================================
+# 节点 6: Engineering Check — 工程规范场景检测
+# ============================================================
+
+async def engineering_check_node(state: AgentState, advisor=None) -> dict:
+    """
+    工程规范顾问：按任务节点触发，不是固定模块。
+
+    在 Planner 之后、Execute 之前运行。
+    检测当前任务是否触发工程场景 → 检索知识 → 三级输出：
+      - suggestion: 注入上下文，不打断
+      - confirm:    注入确认问题
+      - block:      返回阻断消息，路由到 END
+    """
+    if advisor is None:
+        return {"engineering_context": ""}
+
+    message = _get_last_user_message(state)
+    plan = state.get("plan", {})
+    contract = plan.get("contract", {})
+    rag_context = state.get("rag_context", "")
+
+    try:
+        result = await advisor.check(
+            message=message,
+            contract=contract,
+            rag_context=rag_context,
+        )
+    except Exception as e:
+        logger.warning(f"[Engineering] 检查失败 (非关键): {e}")
+        return {"engineering_context": ""}
+
+    if not result.get("triggered"):
+        return {"engineering_context": ""}
+
+    mode = result.get("mode", "silent")
+
+    if mode == "block":
+        block_msg = result.get("block_message", "")
+        logger.warning(
+            f"[Engineering] ⛔ 阻断 | scenarios={[a['scenario'] for a in result.get('advisories', [])]}"
+        )
+        # 将阻断消息作为输出返回，图会路由到 END
+        return {
+            "output": block_msg,
+            "engineering_context": block_msg,
+        }
+    elif mode == "confirm":
+        logger.info(
+            f"[Engineering] ⚠️ 确认级 | scenarios={[a['scenario'] for a in result.get('advisories', [])]}"
+        )
+        # 注入确认问题到 plan，Executor 在执行前看到
+        context = "## ⚠️ 工程规范提醒（请在执行前确认）\n\n"
+        for q in result.get("confirm_questions", []):
+            context += f"- [ ] {q}\n"
+        context += "\n"
+        for a in result.get("advisories", []):
+            if a["level"] >= 2:
+                context += f"\n**{a['scenario']}**\n{a['content'][:300]}\n"
+        return {"engineering_context": context}
+    elif mode == "suggestion":
+        logger.info(
+            f"[Engineering] 💡 建议级 | scenarios={[a['scenario'] for a in result.get('advisories', [])]}"
+        )
+        return {"engineering_context": result.get("context_injection", "")}
+    else:
+        return {"engineering_context": ""}
+
+
+# ============================================================
+# 节点 7: Multi-Agent Execute — 三立场并行 + 阿福整合
+# ============================================================
+
+async def multi_agent_execute_node(state: AgentState, model=None) -> dict:
+    """
+    三立场 Agent Panel: 实用派 / 稳健派 / 创新派并行执行，阿福整合。
+
+    仅在以下情况触发：
+      1. 用户明确要求多角度分析/对比方案
+      2. 需求不明确但用户拒绝追问、坚持要求输出
+
+    非触发时走普通 execute 节点。
+    """
+    from services.multi_agent import MultiAgentPanel
+
+    message = _get_last_user_message(state)
+    background = state.get("background", "")
+    rag_context = state.get("rag_context", "")
+    plan = state.get("plan", {})
+
+    panel = MultiAgentPanel(model=model)
+
+    try:
+        result = await panel.run_panel(
+            message=message,
+            background=background,
+            rag_context=rag_context,
+        )
+    except Exception as e:
+        logger.error(f"[MultiAgent] Panel 执行失败: {e}", exc_info=True)
+        return {
+            "output": f"多角度分析生成失败: {str(e)}",
+        }
+
+    perspectives = result.get("perspectives", {})
+    synthesis = result.get("synthesis", "")
+
+    # ── 将三方原始输出折叠到 synthesis 末尾 ──
+    details = []
+    for key, p in perspectives.items():
+        details.append(
+            f"<details>\n<summary>{p['icon']} {p['label']}原始分析 ({p['elapsed_ms']}ms)</summary>\n\n"
+            f"{p['output'][:1000]}\n"
+            f"</details>"
+        )
+    full_output = synthesis + "\n\n---\n\n" + "\n\n".join(details)
+
+    return {
+        "output": full_output,
+        "multi_agent_perspectives": perspectives,
+        "multi_agent_synthesis": synthesis,
+    }
+
+
+# ============================================================
 # 条件路由
 # ============================================================
 
-def route_after_planner(state: AgentState) -> Literal["clarify", "execute"]:
+def route_after_planner(state: AgentState) -> Literal["clarify", "engineering_check"]:
     plan = state.get("plan", {})
     clarify_round = state.get("clarify_round", 0)
-    if not plan.get("is_complete", False) and clarify_round < MAX_CLARIFY_ROUNDS:
+    if not plan.get("is_complete", False) and clarify_round < max_clarify_rounds:
         return "clarify"
+    return "engineering_check"
+
+
+def route_after_engineering(state: AgentState) -> Literal["execute", "multi_agent", "__end__"]:
+    """
+    工程规范检查后路由:
+    - 如果 output 被设置（阻断模式），直接返回 END
+    - 如果触发多 Agent 条件，走 multi_agent_execute
+    - 否则正常进入 execute
+    """
+    output = state.get("output", "")
+    if output and ("⛔" in output or "🚫" in output or "阻断" in output or "已暂停执行" in output):
+        return "__end__"
+
+    # ── 多 Agent 触发检测 ──
+    message = _get_last_user_message(state)
+    plan = state.get("plan", {})
+    contract = plan.get("contract", {})
+    from services.multi_agent import should_trigger_multi_agent
+    trigger = should_trigger_multi_agent(message, contract)
+    if trigger["trigger"]:
+        logger.info(f"[MultiAgent] 触发: {trigger['reason']}")
+        return "multi_agent"
+
     return "execute"
 
 
@@ -653,23 +867,37 @@ def route_after_checkpoint(state: AgentState) -> Literal["reflect", "execute"]:
 # 构建图
 # ============================================================
 
-def create_graph(rag_service=None, skills=None, model=None):
+def _build_advisor(rag_service=None):
+    """懒加载 EngineeringAdvisor（可选服务）。"""
+    try:
+        from services.engineering_advisor import EngineeringAdvisor
+        return EngineeringAdvisor(rag_service=rag_service)
+    except Exception:
+        return None
+
+
+def create_graph(rag_service=None, skills=None, model=None, config=None):
     """
-    构建 LangGraph 状态图 (V3 — Planner 语义中枢 + 三层上下文)。
+    构建 LangGraph 状态图 (V4 — Planner 语义中枢 + 三层上下文 + 工程规范）。
 
     流程:
-      START → router → enrich → rag → planner → {clarify | execute}
-                                                        ↓
-                                                  execute → checkpoint → {reflect | execute}
-                                                                              ↓
-                                                                        reflect → {execute | END}
+      START → router → enrich → rag → planner → {clarify | engineering_check}
+                                                                    ↓
+                                          engineering_check → {execute | multi_agent | END(block)}
+                                                                    ↓
+                                          execute → checkpoint → {reflect | execute}
+                                          multi_agent → checkpoint → {reflect | execute}
+                                                                    ↓
+                                                              reflect → {execute | END}
 
-    Planner 升级:
-      旧 (V2): Planner 只在开头分析一次 → 然后不管了
-      新 (V3): Planner 通过 checkpoint_node 在每次 Executor 完成后介入，
-              检查语义对齐。如果方向跑偏了，立即给出修正意见 → 回 execute 重试。
-              这是一种「持续语义监控」而非一次性分析。
+    新增: engineering_check — 按任务节点触发，不是固定模块。
+          检测工程场景 → 检索知识卡片 → 三级输出（建议/确认/阻断）。
     """
+    # ── 从 config 读取阈值，覆写模块级变量 ──
+    global max_clarify_rounds
+    if config:
+        max_clarify_rounds = getattr(config, "max_clarify_rounds", DEFAULT_MAX_CLARIFY_ROUNDS) or DEFAULT_MAX_CLARIFY_ROUNDS
+
     workflow = StateGraph(AgentState)
 
     async def _router(state):     return await router_node(state, model)
@@ -677,6 +905,8 @@ def create_graph(rag_service=None, skills=None, model=None):
     async def _rag(state):        return await rag_retrieve_node(state, rag_service)
     async def _planner(state):    return await planner_node(state, model, rag_service)
     async def _clarify(state):    return await clarify_node(state, model)
+    async def _engineering(state): return await engineering_check_node(state, advisor=_build_advisor(rag_service))
+    async def _multi_agent(state): return await multi_agent_execute_node(state, model)
     async def _execute(state):    return await execute_node(state, skills, model)
     async def _checkpoint(state): return await checkpoint_node(state, model)
     async def _reflect(state):    return await reflect_node(state, model)
@@ -686,6 +916,8 @@ def create_graph(rag_service=None, skills=None, model=None):
     workflow.add_node("rag", _rag)
     workflow.add_node("planner", _planner)
     workflow.add_node("clarify", _clarify)
+    workflow.add_node("engineering_check", _engineering)
+    workflow.add_node("multi_agent", _multi_agent)
     workflow.add_node("execute", _execute)
     workflow.add_node("checkpoint", _checkpoint)
     workflow.add_node("reflect", _reflect)
@@ -696,10 +928,17 @@ def create_graph(rag_service=None, skills=None, model=None):
     workflow.add_edge("rag", "planner")
     workflow.add_conditional_edges(
         "planner", route_after_planner,
-        {"clarify": "clarify", "execute": "execute"},
+        {"clarify": "clarify", "engineering_check": "engineering_check"},
     )
     workflow.add_edge("clarify", END)
-    # ── V3: execute → checkpoint → {reflect | execute} ──
+    # ── engineering_check: 正常→execute, 阻断→END ──
+    workflow.add_conditional_edges(
+        "engineering_check", route_after_engineering,
+        {"execute": "execute", "multi_agent": "multi_agent", "__end__": END},
+    )
+    # ── multi_agent → checkpoint → {reflect | execute} ──
+    workflow.add_edge("multi_agent", "checkpoint")
+    # ── execute → checkpoint → {reflect | execute} ──
     workflow.add_edge("execute", "checkpoint")
     workflow.add_conditional_edges(
         "checkpoint", route_after_checkpoint,
@@ -807,11 +1046,90 @@ def _generate_fallback_questions(module: str, expressed: dict, clarify_round: in
     return questions[:max_q]
 
 
-def _format_clarification_message(questions: list, completeness: float, rag_context: str = "") -> str:
+def _generate_contract_questions(contract: dict, clarify_round: int, max_q: int = 3) -> list:
+    """根据 contract.missing_fields 按风险优先级生成追问。
+
+    优先级: goal > scope > constraints > acceptance > risks > deliverables
+    """
+    missing = contract.get("missing_fields", [])
+    if not missing:
+        return []
+
+    # 字段 → 自然语言追问模板
+    FIELD_QUESTIONS = {
+        "goal": [
+            {"text": "能一句话说清楚你要完成什么吗？", "dimension": "goal", "hint": "比如：为博客项目加登录功能"},
+        ],
+        "scope": [
+            {"text": "要做哪些，不做哪些？先说清楚边界能避免跑偏。", "dimension": "scope", "hint": "比如：做注册+登录，不做OAuth和密码找回"},
+        ],
+        "scope.in": [
+            {"text": "具体要做哪些事情？", "dimension": "scope", "hint": ""},
+        ],
+        "scope.out": [
+            {"text": "有什么是确定不在这次范围内的？定好边界不会跑偏。", "dimension": "scope", "hint": "比如：不需要邮箱验证、不需要权限管理"},
+        ],
+        "constraints": [
+            {"text": "有什么硬性限制吗？技术选型、时间、依赖都算。", "dimension": "constraints", "hint": "比如：必须用React+TS，下周五前完成"},
+        ],
+        "acceptance": [
+            {"text": "做到什么程度你觉得算完成？有没有具体的验收标准？", "dimension": "acceptance", "hint": "比如：密码错误提示不区分具体原因"},
+        ],
+        "risks": [
+            {"text": "有没有你觉得需要特别小心的地方？涉及安全、数据、基础设施的？", "dimension": "risks", "hint": ""},
+        ],
+        "deliverables": [
+            {"text": "最后要交付什么？代码、文档、PR，还是别的？", "dimension": "deliverables", "hint": ""},
+        ],
+        "permissions": [
+            {"text": "我能直接改文件、执行命令吗，还是需要先问？", "dimension": "permissions", "hint": ""},
+        ],
+    }
+
+    # 风险优先级排列
+    PRIORITY = ["goal", "scope.out", "scope", "scope.in", "constraints", "risks", "acceptance", "deliverables", "permissions"]
+    ordered = sorted(missing, key=lambda f: PRIORITY.index(f) if f in PRIORITY else 99)
+
+    questions = []
+    for field in ordered[:max_q]:
+        templates = FIELD_QUESTIONS.get(field, [
+            {"text": f"关于「{field}」，能再多说一些吗？", "dimension": field, "hint": ""}
+        ])
+        idx = clarify_round % len(templates)
+        questions.append(templates[idx])
+
+    return questions
+
+
+def _format_clarification_message(questions: list, completeness: float, rag_context: str = "", contract: dict = None) -> str:
+    """格式化追问消息 — V2: 注入 contract 已完成字段的肯定语。"""
     lines = []
-    progress_pct = int(completeness * 100)
+    progress_pct = int((contract.get("confidence", completeness) if contract else completeness) * 100)
+
+    # ── 先肯定已明确的字段 ──
+    if contract:
+        has_affirmation = False
+        affirm_parts = []
+        goal = contract.get("goal", "")
+        scope_in = contract.get("scope", {}).get("in", contract.get("scope", {}).get("in_", []))
+        constraints = contract.get("constraints", [])
+        if goal:
+            affirm_parts.append(f"目标已明确：{goal}")
+            has_affirmation = True
+        if scope_in:
+            affirm_parts.append(f"范围已确定：{', '.join(scope_in)}")
+            has_affirmation = True
+        if constraints:
+            affirm_parts.append(f"约束已记录：{'; '.join(constraints)}")
+            has_affirmation = True
+        if has_affirmation:
+            lines.append("了解。以下信息已记入任务契约：")
+            for p in affirm_parts:
+                lines.append(f"- ✅ {p}")
+            lines.append("")
+
     if progress_pct < 40:
-        lines.append("还差一些信息，请帮忙补充：\n")
+        lines.append("还差一些关键信息，请帮忙补充：\n")
     elif progress_pct < 70:
         lines.append("再确认几个细节：\n")
     else:
@@ -819,9 +1137,11 @@ def _format_clarification_message(questions: list, completeness: float, rag_cont
 
     for i, q in enumerate(questions, 1):
         lines.append(f"**{i}.** {q['text']}")
+        if q.get("hint"):
+            lines.append(f"  _{q['hint']}_")
         lines.append("")
 
-    lines.append(f"（进度 {progress_pct}%）")
+    lines.append(f"（契约完整度 {progress_pct}%）")
     return "\n".join(lines)
 
 
@@ -862,9 +1182,6 @@ def _build_locked_block(intent: dict, dims_text: str, turn_count: int) -> str:
 
 
 async def _execute_legacy_skill(skill_instance, state: dict, model) -> str:
-    from langchain.agents import create_agent
-    from langchain_core.messages import SystemMessage, HumanMessage
-    from tools import get_tools_for_skill
     from skills.base import SkillContext
 
     message = state.get("messages", [])

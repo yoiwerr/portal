@@ -1,6 +1,6 @@
-# MakeItSpecific — Agent 后端依赖
+# Alfred — AI 工作流增强 Agent 后端依赖
 # Agent 框架: LangGraph ReAct + LangChain
-# 向量存储: PostgreSQL + PGVector (与 ChatLab 共用)
+# 向量存储: PostgreSQL + PGVector
 # 推理引擎: 多 Provider (DashScope / DeepSeek / OpenAI / Local)
 
 # Web Framework
@@ -10,9 +10,11 @@ sse-starlette>=2.0
 
 # 数据存储
 psycopg>=3.2
+pgvector>=0.3
 httpx>=0.25.0
 pydantic>=2.0
 python-dotenv>=1.0.0
+python-multipart>=0.0.32
 
 # LLM & Embedding
 dashscope>=1.20
@@ -20,6 +22,12 @@ langchain>=0.3.0
 langgraph>=0.2.0
 langchain-openai>=0.3.0
 langchain-community>=0.3.0
+
+# 异步网络
+aiohttp>=3.9
+
+# 数值计算
+numpy>=1.26
 
 # 测试
 pytest>=7.0

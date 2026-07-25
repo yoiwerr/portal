@@ -3,10 +3,10 @@ Skill 2: 工作安排交流（Work Arranger）
 
 流程: 用户输入工作需求 → 追问补全 → Agent 输出结构化工作计划。
 
-参照 ChatLab skill02_emotion.py 的 LangChain Agent 模式。
+使用 LangGraph prebuilt create_react_agent + 工具调用。
 """
 
-from langchain.agents import create_agent
+from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import SystemMessage, HumanMessage
 
 from skills.base import BaseSkill, SkillContext
@@ -29,7 +29,7 @@ class WorkArranger(BaseSkill):
 
     async def execute(self, context: SkillContext, model) -> str:
         """
-        使用 LangChain Agent 生成结构化工作计划。
+        使用 LangGraph ReAct Agent 生成结构化工作计划。
 
         Agent 可以调用 search_knowledge_base 获取项目管理最佳实践。
         """
@@ -51,15 +51,20 @@ class WorkArranger(BaseSkill):
 请按照系统提示词中的格式要求，生成完整的项目工作计划。
 包含项目概述、阶段划分、任务清单、时间线、工具推荐、风险提示和下一步行动。"""
 
-        agent = create_agent(
-            model=model,
-            tools=get_tools_for_skill(self.name),
-            system_prompt=WORK_ARRANGER_SYSTEM,
+        tools = get_tools_for_skill(self.name)
+        agent = create_react_agent(
+            model=model.bind_tools(tools, parallel_tool_calls=True),
+            tools=tools,
+            prompt=WORK_ARRANGER_SYSTEM,
         )
         result = await agent.ainvoke({
             "messages": [SystemMessage(content=WORK_ARRANGER_SYSTEM), HumanMessage(content=user_prompt)]
         })
-        return result["messages"][-1].content
+        output_messages = result.get("messages", [])
+        for m in reversed(output_messages):
+            if hasattr(m, "content") and m.content:
+                return m.content
+        return ""
 
     def get_input_placeholder(self) -> str:
         return (

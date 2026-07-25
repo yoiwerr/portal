@@ -67,6 +67,7 @@ class SessionStore:
                 status          TEXT DEFAULT 'active',
                 clarify_rounds  INTEGER DEFAULT 0,
                 completeness    REAL DEFAULT 0.0,
+                task_contract   JSONB DEFAULT '{}'::jsonb,
                 created_at      TIMESTAMPTZ DEFAULT NOW(),
                 updated_at      TIMESTAMPTZ DEFAULT NOW()
             );
@@ -131,6 +132,12 @@ class SessionStore:
         cur.close()
         return dict(row) if row else None
 
+    # 允许更新的列白名单（防止 SQL 注入）
+    _ALLOWED_COLUMNS = {
+        "title", "background", "status", "clarify_rounds",
+        "completeness", "task_contract", "updated_at",
+    }
+
     def update_session(self, session_id: str, **kwargs):
         """更新会话字段。"""
         if not kwargs:
@@ -139,6 +146,8 @@ class SessionStore:
         set_parts = []
         values = []
         for k, v in kwargs.items():
+            if k not in self._ALLOWED_COLUMNS:
+                raise ValueError(f"不允许更新的列: {k}")
             if v == "NOW()":
                 set_parts.append(f"{k} = NOW()")
             else:
@@ -146,12 +155,17 @@ class SessionStore:
                 values.append(v)
         values.append(session_id)
         cur = self.conn.cursor()
-        cur.execute(
-            f"UPDATE sessions SET {', '.join(set_parts)} WHERE id = %s",
-            values
-        )
-        self.conn.commit()
-        cur.close()
+        try:
+            cur.execute(
+                f"UPDATE sessions SET {', '.join(set_parts)} WHERE id = %s",
+                values
+            )
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+        finally:
+            cur.close()
 
     def list_sessions(
         self, module: str = None, limit: int = 20

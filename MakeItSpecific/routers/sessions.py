@@ -89,7 +89,7 @@ async def delete_session(session_id: str):
     if not session:
         raise HTTPException(status_code=404, detail="会话不存在")
 
-    _agent.sessions.delete_session(session_id)
+    await _agent.delete_session(session_id)
     return {"ok": True, "deleted": session_id}
 
 

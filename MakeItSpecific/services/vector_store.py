@@ -46,9 +46,14 @@ class PGVectorStore:
     # 所有 collection 定义
     COLLECTIONS = {
         "domain_knowledge": {
-            "description": "领域知识库 — RAG 检索",
+            "description": "领域知识库 — RAG 检索（旧格式，向后兼容）",
             "embedding_dim": 1024,
-            "index_lists": 100,  # IVFFlat 索引的 lists 参数
+            "index_lists": 100,
+        },
+        "knowledge_chunks": {
+            "description": "知识 Chunk — 来源感知的语义分块 + 完整 Identity Chain",
+            "embedding_dim": 1024,
+            "index_lists": 100,
         },
         "session_memory": {
             "description": "跨会话记忆 — LLM 摘要向量化",
@@ -144,8 +149,8 @@ class PGVectorStore:
                     self.conn.commit()
                     logger.info(f"[PGVector] 创建索引: {idx_name}")
 
-                # 确保全文检索索引存在 (domain_knowledge 专用)
-                if coll_name == "domain_knowledge":
+                # 确保全文检索索引存在 (domain_knowledge + knowledge_chunks)
+                if coll_name in ("domain_knowledge", "knowledge_chunks"):
                     fts_idx_name = f"idx_{coll_name}_fts"
                     cur.execute(sql.SQL("""
                         SELECT 1 FROM pg_indexes WHERE indexname = %s
@@ -160,6 +165,66 @@ class PGVectorStore:
                         ))
                         self.conn.commit()
                         logger.info(f"[PGVector] 创建全文索引: {fts_idx_name}")
+
+                # 确保 knowledge_chunks 有 metadata JSONB 索引
+                if coll_name == "knowledge_chunks":
+                    for meta_idx in ["document_id", "chunk_index"]:
+                        idx_name = f"idx_kc_{meta_idx}"
+                        cur.execute(sql.SQL("""
+                            SELECT 1 FROM pg_indexes WHERE indexname = %s
+                        """), (idx_name,))
+                        if cur.fetchone() is None:
+                            # 直接用 SQL 拼接 metadata field name — 不是外部输入，安全
+                            ddl = (
+                                f'CREATE INDEX {idx_name} ON {coll_name} '
+                                f"((metadata->>'{meta_idx}'))"
+                            )
+                            cur.execute(ddl)
+                            self.conn.commit()
+
+            # ── Knowledge Graph 表 ──
+            kg_tables = [
+                """CREATE TABLE IF NOT EXISTS knowledge_sources (
+                    source_id       TEXT PRIMARY KEY,
+                    source_title    TEXT NOT NULL DEFAULT '',
+                    source_url      TEXT DEFAULT '',
+                    source_type     TEXT DEFAULT 'document',
+                    repository      TEXT DEFAULT '',
+                    author          TEXT DEFAULT '',
+                    accessed_at     TEXT DEFAULT '',
+                    version_or_commit TEXT DEFAULT '',
+                    created_at      TIMESTAMPTZ DEFAULT NOW()
+                )""",
+                """CREATE TABLE IF NOT EXISTS knowledge_documents (
+                    document_id     TEXT PRIMARY KEY,
+                    source_id       TEXT NOT NULL REFERENCES knowledge_sources(source_id),
+                    source_title    TEXT DEFAULT '',
+                    chunk_count     INTEGER DEFAULT 0,
+                    created_at      TIMESTAMPTZ DEFAULT NOW()
+                )""",
+                """CREATE TABLE IF NOT EXISTS knowledge_claims (
+                    claim_id        TEXT PRIMARY KEY,
+                    chunk_id        TEXT NOT NULL,
+                    document_id     TEXT NOT NULL,
+                    source_id       TEXT NOT NULL,
+                    claim_text      TEXT NOT NULL,
+                    confidence      REAL DEFAULT 0.5,
+                    created_at      TIMESTAMPTZ DEFAULT NOW()
+                )""",
+            ]
+            for ddl in kg_tables:
+                cur.execute(ddl)
+
+            # 知识图谱索引
+            for idx_name, idx_sql in [
+                ("idx_ks_type", "CREATE INDEX IF NOT EXISTS idx_ks_type ON knowledge_sources(source_type)"),
+                ("idx_kd_source", "CREATE INDEX IF NOT EXISTS idx_kd_source ON knowledge_documents(source_id)"),
+                ("idx_kc_source", "CREATE INDEX IF NOT EXISTS idx_kc_source ON knowledge_claims(source_id)"),
+                ("idx_kc_chunk", "CREATE INDEX IF NOT EXISTS idx_kc_chunk ON knowledge_claims(chunk_id)"),
+            ]:
+                cur.execute(idx_sql)
+
+            self.conn.commit()
 
             cur.close()
         except Exception as e:
@@ -461,7 +526,7 @@ def build_connection_string(config) -> str:
     # DB_* 环境变量优先（兼容 .env），config.pg_* 兜底（Docker 注入）
     host = os.getenv("DB_HOST") or getattr(config, "pg_host", None) or "localhost"
     port = os.getenv("DB_PORT") or getattr(config, "pg_port", None) or "5432"
-    dbname = os.getenv("DB_NAME") or getattr(config, "pg_database", None) or "chatdemopg"
+    dbname = os.getenv("DB_NAME") or getattr(config, "pg_database", None) or "alfred"
     user = os.getenv("DB_USER") or getattr(config, "pg_user", None) or "postgres"
     password = getattr(config, "pg_password", None) or os.getenv("PGSQLPASSWORD", "")
 

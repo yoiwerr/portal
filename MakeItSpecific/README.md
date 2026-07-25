@@ -1,229 +1,379 @@
-# MakeItSpecific 目录职能
+# 阿福 Alfred — AI 协作管家
 
-> AI 工作流增强 Agent — 直接对话，自动路由意图，RAG 知识检索 + 三层记忆 + 追问补全。
-> 最后更新：2026-07-12
+> **守在用户与智能体之间的 AI 协作管家。**
+> 帮助你想清楚目标、适配合适能力、规范工作过程、记住项目结果。
+
+从 [Portal/MakeItSpecific](https://github.com/yoiwerr/portal) 独立出来的完整项目。
 
 ---
 
-## 目录一览
+## 产品定位
+
+阿福不是替用户做所有事情的自动执行 Agent，而是**人与智能体之间的协作管家**。其他 Agent 负责行动，阿福负责确保行动是对的。
+
+### 四项核心能力
+
+| 能力 | 一句话 |
+|------|--------|
+| 💡 **想清楚** | 目标不清晰时追问关键信息，形成任务契约 |
+| 🤝 **选对人** | 根据任务特点推荐合适的模型、工具或 Agent |
+| 🛡️ **看住过程** | 控制范围、规范节奏，高风险操作先确认 |
+| 🧠 **记住结果** | 每次收尾生成项目交接卡，下次直接恢复上下文 |
+
+---
+
+## 运行流程
+
+### 1. 环境准备
+
+```bash
+# 克隆项目
+git clone https://github.com/yoiwerr/Alfred.git
+cd Alfred
+```
+
+**前置依赖：**
+
+- Python 3.12+
+- PostgreSQL 16（需 pgvector 扩展）
+- LLM API Key（至少一个）
+
+### 2. 安装依赖
+
+```bash
+# pip 安装
+pip install -r requirements.txt
+
+# 或使用 uv（推荐，更快）
+uv sync
+```
+
+### 3. 配置环境变量
+
+```bash
+cp .env.example .env
+vim .env   # 填入 LLM API Key + PostgreSQL 密码
+```
+
+**必填项（至少配置一个 LLM Provider）：**
+
+```bash
+# LLM Provider — 至少填一个 API Key
+LLM_PROVIDER=auto              # dashscope | deepseek | openai | local | auto
+DASHSCOPE_API_KEY=sk-xxx       # 百炼 API Key（Embedding + Rerank 必须）
+DEEPSEEK_API_KEY=sk-xxx        # DeepSeek API Key
+
+# PostgreSQL（存储向量 + 会话 + 反馈）
+PGSQLPASSWORD=your-pg-password
+```
+
+> 详细的全部环境变量说明见 [.env.example](./.env.example)。
+
+### 4. 启动 PostgreSQL
+
+**方式一：Docker（推荐，一键启动）**
+
+```bash
+docker run -d --name alfred-pg \
+  -e POSTGRES_PASSWORD=yourpassword \
+  -e POSTGRES_DB=alfred \
+  -p 5432:5432 \
+  pgvector/pgvector:pg16
+```
+
+**方式二：使用已有的 PostgreSQL 实例**
+
+确保已安装 `pgvector` 扩展：
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+### 5. 启动阿福
+
+```bash
+python app.py
+```
+
+启动成功后会看到：
 
 ```
-MakeItSpecific/
-│
-├── static/          ← 前端（浏览器直接加载）
-├── routers/         ← API 路由（HTTP 请求入口）
-├── core/            ← Agent 引擎（意图路由、LangGraph 图、上下文管理、LLM 工厂）
-├── services/        ← 数据服务（PGVector 向量库、RAG 检索、SQLite 会话、MD 导出）
-├── tools/           ← Agent 可调用的工具集（10 个 LangChain @tool）
-├── skills/          ← 三个 Skill（提示词工程 / 工作安排 / 信息留存）
-├── prompts/         ← 所有 System Prompt 文本 + 维度定义 + 追问模板
-├── models/          ← Pydantic 数据模型（请求/响应/SSE 事件/Agent 内部）
-├── memory/          ← L2 跨会话记忆 + L3 用户画像
-│
-├── knowledge_base/  ← RAG 知识源（手写 .md 文件，向量化后注入 Agent）
-├── data/            ← 运行时数据（SQLite DB + 导出文件 + 运行日志）
-│
-├── docs/            ← 学习文档（RAG 深挖、幻觉防御、Context Engineering 等）
-├── tests/           ← 单元测试
-│
-├── app.py           ← 启动入口
-├── config.py        ← 全局配置
-├── Dockerfile / docker-compose.yml / pyproject.toml / requirements.txt
-└── *.md             ← 项目治理文档（CLAUDE.md / boundary.md / GOVERNANCE.md / PROGRESS.md / CAPABILITIES.md）
+============================================================
+  Alfred — Provider: deepseek | Model: deepseek-chat
+============================================================
+  KB: 8 files, 156 chunks
+  [OK] ready
 ```
 
----
+访问：
+- **前端界面**: http://localhost:8001
+- **Swagger API 文档**: http://localhost:8001/docs
+- **健康检查**: http://localhost:8001/api/health
 
-## `static/` — 前端
+### 6. 开始对话
 
-浏览器加载的纯静态文件，零框架依赖。
+在浏览器打开 http://localhost:8001，输入你的需求。阿福会：
 
-| 文件 | 作用 |
-|------|------|
-| `index.html` | 纯对话 UI：初始显示三个功能提示框 + 提示词范例，发消息后切为对话流 |
-| `css/style.css` | 全站样式（黑色 + 灰色，零色彩零特效） |
-| `js/chat.js` | SSE 流式对话客户端：逐 token 渲染、Markdown 解析、👍👎 反馈收集 |
-| `js/particles.js` | 可选背景（当前未使用） |
-
----
-
-## `routers/` — API 路由
-
-HTTP 请求的入口层，每个文件对应一组 REST 端点。
-
-| 文件 | 端点 | 作用 |
-|------|------|------|
-| `chat.py` | `POST /api/chat/stream` | 核心对话：V1 一次性返回 + V2 SSE token 流式（`?v=2`） |
-| `sessions.py` | `GET/DELETE /api/sessions` | 历史会话列表、详情、删除 |
-| `knowledge.py` | `GET/POST /api/knowledge` | 知识库搜索 + 重建索引 |
-| `feedback.py` | `POST /api/feedback` | 用户反馈收集（存 SQLite feedback 表，含 rating + comment） |
+1. **Router 理解意图** → 自动识别你在问什么场景
+2. **RAG 检索知识库** → 从 `knowledge_base/` 中找到相关领域知识
+3. **Planner 分析维度** → 提取关键需求，判断信息完整度
+4. **信息不够就追问** → 用任务契约明确：目标、范围、约束、验收标准
+5. **信息够了就执行** → ReAct Agent 调用工具完成任务
+6. **Checkpoint 语义校准** → 检查输出是否与原始意图对齐
+7. **Reflector 质检** → 评分并决定是否自动重试（最多 2 次）
+8. **生成交接卡** → 任务完成时自动生成 Markdown 交接卡
 
 ---
 
-## `core/` — Agent 引擎
+## 架构
 
-整个系统的大脑。五个文件协作构建 Agent 的完整决策循环。
-
-| 文件 | 作用 |
-|------|------|
-| `graph.py` | **最核心文件** — LangGraph 状态图定义。8 节点流程：`router → enrich → rag → planner → {clarify | execute → checkpoint → reflect → {execute | END}}`。checkpoint 是 Planner 语义中枢，在每次 execute 后检查输出是否偏离用户意图 |
-| `agent.py` | Agent 编排器 — 封装 LangGraph 图的调用。`process_message()` (V1) 和 `process_message_stream()` (V2 token 流式)，初始化时注入 ContextEngine + 记忆系统 + 三个 Skill + 工具 |
-| `router.py` | 意图识别 — LLM + 规则双通道，判断用户想做什么（6 类意图 → 3 个模块），替代手动选模块 |
-| `context_engine.py` | 三层上下文引擎 — L1 最近 3 轮原文零成本保留 / L2 LLM 滚动摘要增量更新 / L3 LLM 提取语义事实 → PGVector 跨会话召回。含主题切换检测 + RAG query 增强 |
-| `llm_client.py` | LLM 工厂 — 一个 `create_model(config)` 函数，支持 DashScope / DeepSeek / OpenAI / Local 四 provider，新加 provider 只需一个 `@_reg("name")` 装饰函数 |
-
----
-
-## `services/` — 数据服务
-
-对接 PostgreSQL / SQLite / 文件系统的数据层。
-
-| 文件 | 作用 |
-|------|------|
-| `vector_store.py` | PGVector 向量存储封装 — 三张表（domain_knowledge / session_memory / user_profile），IVFFlat 余弦索引 + GIN 全文索引，完整 CRUD + BM25 全文检索 |
-| `rag_service.py` | RAG 检索管道 — 混合检索 Dense+BM25 → RRF 融合 → qwen3-rerank 精排 → 相似度过滤（≥0.6）→ 关键词加权。含 SemanticChunker 语义分块器 |
-| `session_store.py` | SQLite 会话存储 — sessions + messages 两张表，WSL 兼容（journal_mode=DELETE + busy_timeout） |
-| `md_export.py` | Markdown 导入导出 — 将对话记录导出为 .md 文件，或从多个 .md 文件加载上下文 |
-
----
-
-## `tools/` — Agent 工具集
-
-LangChain `@tool` 装饰的函数，Agent 在执行阶段按需调用。由 `__init__.py` 统一注册并分配到各 Skill。
-
-| 文件 | 工具 | 类型 |
-|------|------|------|
-| `search.py` | `search_knowledge_base` / `search_web` / `fetch_url` / `search_chat_history` | 信息检索 |
-| `code.py` | `python_exec` | 代码沙箱 |
-| `delegate.py` | `delegate_task` | 多 Agent 委托 |
-| `shell.py` | `run_shell_preview` | 只读 Shell |
-| `text.py` | `parse_text` / `compare_texts` / `summarize_text` | 文本规则引擎 |
-| `knowledge.py` | `add_to_knowledge_base` / `list_knowledge_sources` | 知识管理 |
-| `__init__.py` | `ALL_TOOLS` + `SKILL_TOOL_MAP` + `get_tools_for_skill()` | 工具注册表 |
-
----
-
-## `skills/` — 任务执行模块
-
-三个 Skill 都继承 `base.py` 的 `BaseSkill`，输入 `SkillContext`，输出 Markdown。
-
-| 文件 | 功能 | 典型输出 |
-|------|------|----------|
-| `prompt_refiner.py` | 提示词工程 | 大白话 → 追问 → 2-3 个优化版提示词（版号 A/B/C + 推荐模型 + 理由） |
-| `work_arranger.py` | 工作安排 | 模糊想法 → 追问 → 结构化计划（阶段划分 + 任务表 + MVP + 下一步） |
-| `info_retention.py` | 信息留存 | 对话/文件 → 追问 → 结构化 Markdown 文档 |
-| `base.py` | 抽象基类 | `BaseSkill(ABC)` + `SkillContext` dataclass |
-
----
-
-## `prompts/` — Prompt 文本
-
-所有 System Prompt 文本集中管理，与 Python 逻辑分离。
-
-| 文件 | 内容 |
-|------|------|
-| `system_prompts.py` | 8 段 Prompt：Planner / Executor / Reflector / 三个 Skill / 维度提取 / 场景分类 |
-| `templates.py` | 维度定义（权重/必填/可选）+ 追问模板 + 工具函数（完整度计算/维度格式化） |
-
----
-
-## `models/` — 数据模型
-
-| 文件 | 内容 |
-|------|------|
-| `schemas.py` | Pydantic 模型全集：`ChatRequest`、SSE 事件（Token/ToolCall/Clarify/Execute/Error/Done）、Agent 内部（AgentPlan/DimensionInfo/SkillResult/PromptVersion）、管理（SessionSummary/FeedbackRequest/HealthResponse） |
-
----
-
-## `memory/` — 记忆系统
-
-| 文件 | 作用 |
-|------|------|
-| `session_memory.py` | L2 跨会话记忆 — 会话结束 LLM 摘要 → embedding → PGVector `session_memory` 表，新会话开始时向量检索注入上下文 |
-| `user_profile.py` | L3 用户画像 — 从多次对话逐渐学习技术栈/偏好/项目，存 PGVector `user_profile` 表（单文档），规则层快速合并 + LLM 层智能更新 |
-
----
-
-## `knowledge_base/` — RAG 知识源
-
-手写 Markdown 文件，启动时自动向量化到 PGVector `domain_knowledge` 表。Agent 执行任务前先搜这里。
-
-→ 加知识：新建 `.md` 文件放这里，调用 `/api/knowledge/reindex` 重建索引。
-
----
-
-## `data/` — 运行时数据
-
-程序运行中产生的文件，`.gitignore` 忽略全部（仅保留目录结构）。
-
-| 子目录/文件 | 内容 |
-|-------------|------|
-| `makeitspecific.db` | SQLite 数据库（sessions + messages + feedback 三张表） |
-| `exports/` | Markdown 导出文件 |
-| `logs/app.log` | 运行日志（终端同步输出，RotatingFileHandler，5MB × 3 文件） |
-
----
-
-## `docs/` — 学习文档
-
-开发过程中产出的深度学习文档，非代码、非运行必需。
-
-| 文件 | 内容 |
-|------|------|
-| `rag-deep-dive.md` | RAG 深挖：从单层检索到 Dense+BM25+RRF+Rerank 混合检索，六轮反馈修订 |
-| `context-engineering-guide.md` | 三层上下文引擎：原理 → 代码落地 → 调试方法 |
-| `three-layer-rag.md` | 三层 RAG 架构总览：Dense + BM25 + 知识图谱摘要互补覆盖 |
-| `hallucination-prevention.md` | 幻觉防御：四种幻觉类型 + 四层防线 + ReAct 本质 |
-| `tool-loop-prevention.md` | 工具防循环：Agent 为什么打转 + 三层防线设计 |
-
----
-
-## `tests/` — 单元测试
-
-| 文件 | 内容 |
-|------|------|
-| `test_graph.py` | 核心图纯函数测试：JSON 解析降级链、维度合并、追问生成、完整度计算、路由逻辑 |
-| `test_session_store.py` | SQLite 会话测试：创建、消息读写、级联删除、过滤 |
-
----
-
-## 项目治理文档（`*.md`）
-
-| 文件 | 读者 | 内容 |
-|------|------|------|
-| `CLAUDE.md` | Claude Code | 架构概览 + 本地开发 + 部署 + Session 记录 |
-| `boundary.md` | 开发者 | 工具边界、Context Engineering 规范、RAG 架构、检查清单 |
-| `GOVERNANCE.md` | 开发者 | 项目宪章：开发原则、代码审查清单、安全规范、多 Agent 协议 |
-| `CAPABILITIES.md` | 产品/开发者 | 能力清单、Tools/Skills/Memory/MCP/API Key 矩阵 |
-| `PROGRESS.md` | 开发者 | V2/V3 开发进度记录、已完成的架构决策 |
-| `README.md` | 所有人 | 本文件 |
-
----
-
-## 数据流全链路
+### 整体架构
 
 ```
-浏览器 POST /api/chat/stream?v=2
-    │  SSE EventSourceResponse
+Browser (SSE Token Streaming)
+    │  POST /api/chat/stream?v=2
     ▼
-routers/chat.py
-    │  agent.process_message_stream()
-    ▼
-core/agent.py ── _build_initial_state()
-    │               ├─ ContextEngine.build()  → L1/L2/L3 上下文
-    │               ├─ SessionMemory.retrieve() → 跨会话记忆
-    │               └─ UserProfile.format()    → 用户画像
-    ▼
-core/graph.py ── LangGraph astream_events
+FastAPI → LangGraph ReAct Agentic Loop
     │
-    ├─ router     → core/router.py (LLM+规则 意图识别)
-    ├─ enrich     → context_engine (query 增强)
-    ├─ rag        → services/rag_service.py (Dense+BM25→RRF→Rerank)
-    ├─ planner    → prompts/system_prompts.py (LLM JSON mode)
-    ├─ execute    → create_react_agent(tools) → tools/ (10 tools)
-    ├─ checkpoint → Planner 语义对齐检查
-    └─ reflect    → 质量审核 (最多 2 次重试)
-    │
-    ▼ SSE token stream
-static/js/chat.js ── 逐 token 渲染 + Markdown + 反馈按钮
+    ├── Router:    意图识别 + 模块自动路由
+    ├── Enrich:    Query 增强（上下文驱动，提升 RAG 命中率）
+    ├── RAG:       混合检索（Dense + BM25 Sparse → RRF → Rerank）
+    ├── Planner:   提取维度 + 判断完整度 → 追问 or 执行
+    ├── Clarify:   动态追问补全信息（任务契约引导）
+    ├── Engineering Check:  工程规范场景检测（建议/确认/阻断三级）
+    ├── Execute:   ReAct Agent tool calling loop（支持并行 tool call）
+    ├── Checkpoint: Planner 语义中枢介入，检查对齐
+    └── Reflect:   质量检查 + 自动重试（最多 2 次）
+
+存储层: PostgreSQL + PGVector（向量检索 + 会话 + 记忆 + 反馈 + 契约）
 ```
+
+### LangGraph 执行流程
+
+```
+START
+  │
+  ▼
+router (意图识别)
+  │
+  ▼
+enrich (Query 增强)
+  │
+  ▼
+rag (知识库检索)
+  │
+  ▼
+planner (LLM 提取维度 + 完整度判断)
+  ├─ 信息不足 → clarify (追问 → END)
+  └─ 信息足够 → engineering_check
+                    ├─ 阻断 → END
+                    ├─ 多Agent → multi_agent_execute → reflect → END
+                    └─ 正常 → execute
+                                │
+                                ▼
+                            checkpoint (语义对齐检查)
+                                ├─ 对齐 → reflect
+                                └─ 偏离 → execute (重试)
+                                            │
+                                            ▼
+                                        reflect (质量检查)
+                                            ├─ 通过 → END
+                                            └─ 不通过 → execute (重试，最多2次)
+```
+
+### 三层上下文架构
+
+| 层 | 名称 | 内容 | 生命周期 |
+|----|------|------|----------|
+| L1 | 滑动窗口 | 最近 3 轮完整对话原文 | 当前会话 |
+| L2 | 滚动摘要 | 全部历史的压缩总结 | 当前会话 |
+| L3 | 语义事实 | LLM 提取的结构化事实，PGVector 持久化 | 跨会话 |
+
+### 任务契约系统
+
+在 Planner 阶段自动生成结构化任务契约：
+
+```
+任务契约
+├── goal          → 一句话目标
+├── scope         → 范围（in / out）
+├── constraints   → 硬性约束
+├── acceptance    → 验收标准
+├── risks         → 风险登记
+├── deliverables  → 交付物定义
+└── permissions   → 权限声明（读/写/执行）
+```
+
+契约在前后端之间以 SSE 事件实时推送，持久化到 PostgreSQL，支持跨会话恢复。
+
+### 多 Agent Panel（三立场并行）
+
+当需求不明确但用户拒绝追问时，自动触发三立场并行分析：
+
+| 立场 | 角色 | 关注点 |
+|------|------|--------|
+| 💼 实用派 | Focus on results | 最快能用的方案 |
+| 🛡️ 稳健派 | Focus on safety | 最稳妥可维护的方案 |
+| 💡 创新派 | Focus on possibilities | 最优雅前瞻的方案 |
+
+三并行输出后，阿福整合为结构化对比并给出推荐。
+
+---
+
+## 项目目录
+
+```
+Alfred/
+├── app.py                ← FastAPI 入口
+├── config.py             ← 全局配置（多 Provider）
+├── pyproject.toml        ← 项目元数据 + 依赖
+├── requirements.txt      ← pip 依赖
+├── .env.example          ← 环境变量模板
+│
+├── core/                 ← Agent 引擎
+│   ├── agent.py          ← Agent 编排器（astream_events 流式）
+│   ├── graph.py          ← LangGraph V4 ReAct Agentic Loop
+│   ├── llm_client.py     ← 多 Provider LLM 工厂
+│   ├── context_engine.py ← 三层上下文架构（L1/L2/L3）
+│   └── router.py         ← 意图路由（规则 + LLM）
+│
+├── routers/              ← FastAPI 路由
+│   ├── chat.py           ← 核心对话（SSE 流式，V2 token 级）
+│   ├── sessions.py       ← 会话管理 + Markdown 导出
+│   ├── knowledge.py      ← 知识库管理
+│   ├── feedback.py       ← 用户反馈（👍👎）
+│   ├── files.py          ← 文件上传
+│   └── handover.py       ← 交接卡生成
+│
+├── services/             ← 数据服务
+│   ├── rag_service.py       ← RAG V5（来源感知 + 混合检索 + 知识图谱）
+│   ├── vector_store.py      ← PGVector 向量存储
+│   ├── session_store.py     ← PostgreSQL 会话持久化
+│   ├── contract_store.py    ← 任务契约持久化
+│   ├── document_processor.py ← 文档解析 + 语义分块
+│   ├── engineering_advisor.py ← 工程规范顾问
+│   ├── multi_agent.py       ← 三立场 Agent Panel
+│   ├── handover_service.py  ← 交接卡服务
+│   └── md_export.py         ← Markdown 导入导出
+│
+├── tools/                ← Agent 工具集（@tool）
+│   └── search.py         ← search_kb / search_web / search_history
+│
+├── skills/               ← 技能（提示词工程 / 工作安排 / 信息留存 / 代码审查）
+├── prompts/              ← System Prompts（Planner / Executor / Reflector）
+├── models/               ← Pydantic 数据模型（含 task_contract）
+├── memory/               ← L2/L3 记忆系统（SessionMemory + UserProfile）
+│
+├── static/               ← 前端（Vanilla JS + CSS，零框架依赖）
+│   ├── index.html        ← 三栏工作台布局
+│   ├── css/style.css
+│   ├── js/chat.js        ← SSE token 流式渲染 + 反馈 + 交接卡
+│   └── source/           ← 静态资源
+│
+├── knowledge_base/       ← RAG 知识源（.md 文件，含 frontmatter 元数据）
+│   ├── prompt_engineering.md
+│   ├── workflow_best_practices.md
+│   ├── tool_recommendations.md
+│   ├── tech_news.md
+│   ├── engineering/      ← 工程规范知识卡片
+│   └── coding_skills/
+│
+├── tests/                ← 测试
+└── data/                 ← 运行时数据（日志 + 导出，自动创建）
+```
+
+---
+
+## 技术栈
+
+| 层 | 技术 |
+|----|------|
+| 框架 | FastAPI + LangGraph + LangChain |
+| LLM | 多 Provider — DashScope (Qwen) / DeepSeek / OpenAI / Local |
+| 嵌入 | DashScope text-embedding-v4（1024 维） |
+| 向量存储 | PostgreSQL + PGVector |
+| Rerank | 百炼 qwen3-rerank（120K token / 500 docs） |
+| 检索管道 | Dense + BM25 Sparse → RRF 融合 → Rerank → 关键词加权 → 邻接 Chunk 召回 |
+| 分块 | SemanticChunker（相邻句子 embedding 相似度断崖切分） |
+| 流式 | SSE（sse-starlette），astream 节点级进度 + token 级渲染 |
+| 会话 | PostgreSQL（与向量存储共用实例） |
+| 记忆 | L2 滚动摘要 + L3 语义事实（LLM 提取 + PGVector 持久化） |
+| 前端 | Vanilla JS + CSS（零框架依赖，三栏工作台布局） |
+
+---
+
+## API 端点
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/` | 首页（三栏工作台） |
+| `GET` | `/api/health` | 健康检查（含 PG + Agent 状态） |
+| `POST` | `/api/chat/stream?v=2` | SSE 流式对话（V2 token 级渲染） |
+| `GET` | `/api/sessions` | 会话列表 |
+| `GET` | `/api/sessions/{id}` | 会话详情（含消息历史） |
+| `GET` | `/api/sessions/{id}/export` | 导出 Markdown 交接卡 |
+| `DELETE` | `/api/sessions/{id}` | 删除会话 |
+| `POST` | `/api/sessions/{id}/handover` | 生成交接卡 |
+| `POST` | `/api/feedback` | 提交反馈（👍👎 + 评论文本） |
+| `GET` | `/api/feedback/stats` | 反馈统计 |
+| `POST` | `/api/knowledge/upload` | 上传知识文件 |
+| `POST` | `/api/files/upload` | 上传附件 |
+| `GET` | `/docs` | Swagger API 文档 |
+
+---
+
+## 开发
+
+### 运行测试
+
+```bash
+python -m pytest tests/ -v
+```
+
+### 添加知识库文件
+
+在 `knowledge_base/` 下放置 `.md` 文件，支持 YAML frontmatter 元数据：
+
+```markdown
+---
+source_title: 我的参考文档
+source_url: https://example.com/doc
+source_type: documentation
+repository: https://github.com/user/repo
+author: 作者名
+---
+正文内容...
+```
+
+重启后阿福会自动索引新文件。
+
+### 添加新 Skill
+
+1. 在 `skills/` 下创建新的 Skill 类（继承 `BaseSkill`）
+2. 在 `core/agent.py` 的 `__init__` 中注册
+3. 在 `prompts/system_prompts.py` 中添加对应的 System Prompt
+
+---
+
+## Docker 部署
+
+```bash
+# 1. 配置环境变量
+cp .env.example .env && vim .env
+
+# 2. 启动 PostgreSQL
+docker run -d --name alfred-pg \
+  -e POSTGRES_PASSWORD=yourpassword \
+  -e POSTGRES_DB=alfred \
+  -p 5432:5432 \
+  pgvector/pgvector:pg16
+
+# 3. 启动 Alfred
+python app.py
+# → http://localhost:8001
+```
+
+---
+
+## License
+
+MIT

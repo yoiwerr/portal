@@ -1,12 +1,12 @@
-"""MakeItSpecific global config."""
+"""Alfred — AI 工作流增强 Agent 全局配置."""
 
 import os
 from pathlib import Path
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
-_env = Path(__file__).resolve().parent.parent / ".env"
-load_dotenv(_env if _env.exists() else Path(__file__).resolve().parent / ".env")
+# 仅读取项目根目录的 .env（独立部署，不依赖 Portal）
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 
 @dataclass
@@ -19,7 +19,7 @@ class Config:
     api_port: int = 8001
     pg_host: str = "localhost"
     pg_port: int = 5432
-    pg_database: str = "chatdemopg"
+    pg_database: str = "alfred"
     pg_user: str = "postgres"
     pg_password: str = ""
     llm_provider: str = "auto"

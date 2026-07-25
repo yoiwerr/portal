@@ -37,7 +37,7 @@ def export_session_to_md(
 
     # 构建 Markdown 内容
     lines = [
-        f"# MakeItSpecific - {title}",
+        f"# 阿福 · 对话记录 — {title}",
         "",
         f"> 导出时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"> 模块: {session.get('module', '未知')}",

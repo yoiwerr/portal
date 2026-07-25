@@ -5,6 +5,7 @@ run_shell_preview : 执行白名单只读命令，用于查看项目结构、配
 """
 
 import subprocess
+import shlex
 import logging
 from pathlib import Path
 
@@ -111,9 +112,10 @@ def run_shell_preview(command: str) -> str:
         return f"🛡️ 安全限制: {reason}"
 
     try:
+        cmd_parts = shlex.split(command)
         result = subprocess.run(
-            command,
-            shell=True,
+            cmd_parts,
+            shell=False,
             capture_output=True,
             text=True,
             timeout=10,
