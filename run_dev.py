@@ -124,13 +124,14 @@ class PortalHandler(http.server.SimpleHTTPRequestHandler):
 
         # ── Alfred reverse proxy ──
         if path == "/alfred" or path.startswith("/alfred/"):
-            target = API_ALFRED + (path[len("/alfred"):] or "/")
-            return self._proxy("GET", target)
+            sub = path[len("/alfred"):] or "/"
+            return self._proxy("GET", API_ALFRED + sub, prefix="/alfred")
 
         # ── API routing ──
         if path.startswith("/api"):
-            target = API_ALFRED if any(path.startswith(p) for p in ALFRED_API_PREFIXES) else API_CHATLAB
-            return self._proxy("GET", target + path)
+            to_alfred = any(path.startswith(p) for p in ALFRED_API_PREFIXES)
+            target = API_ALFRED if to_alfred else API_CHATLAB
+            return self._proxy("GET", target + path, prefix="/alfred" if to_alfred else "")
 
         # ── Static file serving ──
         fp = self._resolve_static(path)
@@ -143,12 +144,13 @@ class PortalHandler(http.server.SimpleHTTPRequestHandler):
         path = self.path.split("?")[0]
 
         if path == "/alfred" or path.startswith("/alfred/"):
-            target = API_ALFRED + (path[len("/alfred"):] or "/")
-            return self._proxy("POST", target)
+            sub = path[len("/alfred"):] or "/"
+            return self._proxy("POST", API_ALFRED + sub, prefix="/alfred")
 
         if path.startswith("/api"):
-            target = API_ALFRED if any(path.startswith(p) for p in ALFRED_API_PREFIXES) else API_CHATLAB
-            return self._proxy("POST", target + path)
+            to_alfred = any(path.startswith(p) for p in ALFRED_API_PREFIXES)
+            target = API_ALFRED if to_alfred else API_CHATLAB
+            return self._proxy("POST", target + path, prefix="/alfred" if to_alfred else "")
 
         self.send_response(405)
         self.end_headers()
@@ -202,7 +204,7 @@ class PortalHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content)
 
-    def _proxy(self, method: str, target: str):
+    def _proxy(self, method: str, target: str, *, prefix: str = ""):
         body = None
         cl = int(self.headers.get("Content-Length", 0))
         if cl > 0:
@@ -214,12 +216,32 @@ class PortalHandler(http.server.SimpleHTTPRequestHandler):
                 if h in self.headers:
                     req.add_header(h, self.headers[h])
             with urllib.request.urlopen(req, timeout=120) as resp:
+                resp_body = resp.read()
+                resp_ct = resp.headers.get_content_type() or ""
+
+                # ── Inject <base> tag for subpath proxying ──
+                if prefix and "text/html" in resp_ct:
+                    import re as _re
+                    resp_body = _re.sub(
+                        rb"(<head[^>]*>)",
+                        rf'\1<base href="{prefix}/">'.encode(),
+                        resp_body, count=1,
+                    )
+                    print(f"  [proxy] Injected base href={prefix}/ into HTML")
+
                 self.send_response(resp.status)
+                # Always send correct Content-Length after possible injection
+                send_headers = {
+                    "Content-Type": resp_ct or "application/octet-stream",
+                    "Content-Length": str(len(resp_body)),
+                }
                 for k, v in resp.headers.items():
-                    if k.lower() in ("content-type", "content-length", "cache-control"):
-                        self.send_header(k, v)
+                    if k.lower() == "cache-control":
+                        send_headers["Cache-Control"] = v
+                for k, v in send_headers.items():
+                    self.send_header(k, v)
                 self.end_headers()
-                self.wfile.write(resp.read())
+                self.wfile.write(resp_body)
         except urllib.error.HTTPError as e:
             self.send_response(e.code)
             self.send_header("Content-Type", "application/json")
