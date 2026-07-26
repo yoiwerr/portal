@@ -169,7 +169,7 @@ check_url() {
 
 sleep 3  # 等容器启动
 check_url "http://localhost/api/health"           "ChatLab API"
-check_url "http://localhost/specific/api/health"  "MakeItSpecific API"
+check_url "http://localhost/alfred/api/health"  "Alfred API"
 check_url "http://localhost"                       "Portal 首页"
 
 # ── 显示状态 ──

@@ -1,0 +1,37 @@
+services:
+  specific-api:
+    build: .
+    container_name: alfred-api
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 120
+    environment:
+      # LLM
+      LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      # PostgreSQL
+      PGSQLPASSWORD: ${PGSQLPASSWORD}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: alfred
+      # Agent
+      MEMORY_ENABLED: ${MEMORY_ENABLED:-true}
+      SANDBOX_ENABLED: ${SANDBOX_ENABLED:-false}
+      MAX_TOOL_ROUNDS: ${MAX_TOOL_ROUNDS:-10}
+      # RAG
+      RERANK_ENABLED: ${RERANK_ENABLED:-true}
+      RERANK_MODEL: ${RERANK_MODEL:-qwen3-rerank}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

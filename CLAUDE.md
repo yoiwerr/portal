@@ -13,7 +13,7 @@
 ├── .env.example                   ← 环境变量模板
 ├── .gitignore
 │
-├── nginx/default.conf             ← 线上路由: / → 首页, /chatlab → Streamlit, /api → FastAPI, /specific → MakeItSpecific
+├── nginx/default.conf             ← 线上路由: / → 首页, /chatlab → Streamlit, /api → FastAPI, /alfred → MakeItSpecific
 ├── static/                        ← 首页 (纯 HTML/CSS)
 │   ├── index.html
 │   └── css/style.css
@@ -68,7 +68,7 @@ make dev
 
 - FastAPI `/` → `static/index.html`
 - FastAPI `/chatlab` → ChatLab 页面
-- FastAPI `/specific` → 302 重定向到 `localhost:8001`
+- FastAPI `/alfred` → 302 重定向到 `localhost:8001`
 - Streamlit 直连 `localhost:8000/api/v1/*`
 
 ## 服务器部署
@@ -80,7 +80,7 @@ cp .env.example .env && vim .env   # 填入密钥，DB_HOST=postgres
 chmod +x scripts/deploy.sh && ./scripts/deploy.sh
 ```
 
-访问 `http://<公网IP>`。nginx 层路由: `/` 首页, `/chatlab` Streamlit, `/api` FastAPI, `/specific` MakeItSpecific。
+访问 `http://<公网IP>`。nginx 层路由: `/` 首页, `/chatlab` Streamlit, `/api` FastAPI, `/alfred` MakeItSpecific。
 
 ## 加新子项目范式
 
@@ -117,7 +117,7 @@ chmod +x scripts/deploy.sh && ./scripts/deploy.sh
 1. **MakeItSpecific 集成** — 将 MakeItSpecific 工作流增强 Agent 作为子项目加入 Portal
 2. **架构对齐 ChatLab** — FastAPI + LangChain Agent + @tool，LLM 层从 ~440 行简化为 40 行 ChatOpenAI 工厂
 3. **Docker 化** — Dockerfile + docker-compose.yml，specific-api 容器 + volume 持久化
-4. **Nginx 路由** — 新增 5 个 location 块：`= /specific`（尾部斜杠重定向），`/specific/css/`、`/specific/js/`（静态资源代理），`/specific/api/`（SSE 流式代理），`/specific/`（首页代理）
+4. **Nginx 路由** — 新增 5 个 location 块：`= /alfred`（尾部斜杠重定向），`/alfred/css/`、`/alfred/js/`（静态资源代理），`/alfred/api/`（SSE 流式代理），`/alfred/`（首页代理）
 5. **首页卡片** — 新增 MakeItSpecific 项目卡片（⚡ New badge）
 6. **子路径部署修复** — 前端全部改用相对路径：HTML `href="css/style.css"` + `src="js/..."`, JS `fetch('api/chat/stream')`（去掉前导 `/`），避免与 portal 层的 `/css/` `/js/` `/api/` 冲突
 7. **Docker 服务名冲突修复** — MakeItSpecific 服务名 `api` → `specific-api`，解决与 ChatLab 同名 `api` 服务在 docker compose include 时的冲突
@@ -126,7 +126,7 @@ chmod +x scripts/deploy.sh && ./scripts/deploy.sh
 ### 2026-07-03
 
 1. **run_dev.py 三服务** — 新增 MakeItSpecific (:8001) 到本地启动器，与 ChatLab FastAPI (:8000) + Streamlit (:8501) 并列
-2. **首页路由补全** — ChatLab FastAPI 新增 `/specific` → 302 重定向到 `localhost:8001`，本地开发点首页卡片即可跳转
+2. **首页路由补全** — ChatLab FastAPI 新增 `/alfred` → 302 重定向到 `localhost:8001`，本地开发点首页卡片即可跳转
 3. **端口配置化** — MakeItSpecific `config.py` 新增 `API_HOST` / `API_PORT` 环境变量，app.py `__main__` 块使用配置值
 4. **知识库路径修复** — `knowledge_base_dir` 从 `data_dir/knowledge_base` 改为 `project_root/knowledge_base`，修复 Docker 中找不到 KB 文件的问题
 5. **文档更新** — CLAUDE.md 架构树 + TODO.md 部署清单对齐三服务架构

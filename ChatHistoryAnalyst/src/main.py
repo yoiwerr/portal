@@ -255,9 +255,9 @@ if not _IS_DOCKER:
             return f.read()
 
 
-    @app.get("/specific")
-    async def specific_redirect():
-        """MakeItSpecific — 本地开发时重定向到 :8001"""
+    @app.get("/alfred")
+    async def alfred_redirect():
+        """Alfred — 本地开发时重定向到 :8001"""
         return RedirectResponse(url="http://localhost:8001")
 
 

@@ -16,17 +16,21 @@ https://your-domain.com  ← 你的域名（HTTPS，有绿锁）
 [你的云服务器]  ← 公网 IP（例: 1.2.3.4）
     │
     ├── nginx (port 80/443)
-    │     ├── /         → 首页 static/index.html
-    │     ├── /chatlab  → static/chatlab.html
-    │     ├── /css/*    → static/css/
-    │     ├── /js/*     → static/js/
-    │     ├── /bgm/*    → static/bgm/
-    │     ├── /photo/*  → static/photo/
-    │     └── /api/*    → proxy → chalab-api:8000
+    │     ├── /          → 首页 static/index.html
+    │     ├── /chatlab   → static/chatlab.html
+    │     ├── /alfred/*  → proxy → alfred-api:8000
+    │     ├── /api/*     → proxy → chalab-api:8000
+    │     ├── /css/*     → static/css/
+    │     ├── /js/*      → static/js/
+    │     ├── /bgm/*     → static/bgm/
+    │     └── /photo/*   → static/photo/
     │
     ├── chalab-api (FastAPI :8000)
     ├── chalab-streamlit (Streamlit :8501)
+    ├── alfred-api (FastAPI :8000 /app — Alfred Agent)
     └── chalab-postgres (PostgreSQL + pgvector)
+         ├── chatdemopg  (ChatLab 数据库)
+         └── alfred      (Alfred 数据库 — 独立)
 ```
 
 ---
@@ -268,9 +272,10 @@ sudo crontab -e
 ### 14. 最终效果
 
 访问：
-- `https://yoiwerr.me` → 首页
-- `https://yoiwerr.me/chatlab` → ChatLab
-- `https://yoiwerr.me/api/docs` → API 文档
+- `https://your-domain.com` → 首页
+- `https://your-domain.com/chatlab` → ChatLab
+- `https://your-domain.com/alfred` → Alfred
+- `https://your-domain.com/api/docs` → ChatLab API 文档
 
 浏览器地址栏有 **🔒 绿锁**。
 

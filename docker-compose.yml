@@ -19,5 +19,5 @@ services:
       api:
         condition: service_healthy
       specific-api:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
