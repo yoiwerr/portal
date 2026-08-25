@@ -43,12 +43,18 @@ for _ in $(seq 1 30); do
 done
 [[ "$(docker inspect --format='{{.State.Health.Status}}' portal-journal 2>/dev/null || true)" == healthy ]] || { docker compose logs --tail=100 journal; fail 'Journal did not become healthy'; }
 
-docker compose up -d --build alfred-admin
-for _ in $(seq 1 30); do
-  [[ "$(docker inspect --format='{{.State.Health.Status}}' alfred-admin 2>/dev/null || true)" == healthy ]] && break
-  sleep 2
-done
-[[ "$(docker inspect --format='{{.State.Health.Status}}' alfred-admin 2>/dev/null || true)" == healthy ]] || { docker compose logs --tail=100 alfred-admin; fail 'AlfredAdmin did not become healthy'; }
+if docker compose up -d --build alfred-admin; then
+  for _ in $(seq 1 30); do
+    [[ "$(docker inspect --format='{{.State.Health.Status}}' alfred-admin 2>/dev/null || true)" == healthy ]] && break
+    sleep 2
+  done
+  if [[ "$(docker inspect --format='{{.State.Health.Status}}' alfred-admin 2>/dev/null || true)" != healthy ]]; then
+    warn 'AlfredAdmin is not healthy; continuing with Journal (Alfred routes may return 502)'
+    docker compose logs --tail=100 alfred-admin || true
+  fi
+else
+  warn 'AlfredAdmin build/start failed; continuing with Journal (Alfred routes may return 502)'
+fi
 
 docker compose run --rm --no-deps nginx nginx -t
 docker compose up -d --no-deps --force-recreate nginx
