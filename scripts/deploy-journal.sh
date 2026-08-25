@@ -43,6 +43,13 @@ for _ in $(seq 1 30); do
 done
 [[ "$(docker inspect --format='{{.State.Health.Status}}' portal-journal 2>/dev/null || true)" == healthy ]] || { docker compose logs --tail=100 journal; fail 'Journal did not become healthy'; }
 
+docker compose up -d --build alfred-admin
+for _ in $(seq 1 30); do
+  [[ "$(docker inspect --format='{{.State.Health.Status}}' alfred-admin 2>/dev/null || true)" == healthy ]] && break
+  sleep 2
+done
+[[ "$(docker inspect --format='{{.State.Health.Status}}' alfred-admin 2>/dev/null || true)" == healthy ]] || { docker compose logs --tail=100 alfred-admin; fail 'AlfredAdmin did not become healthy'; }
+
 docker compose run --rm --no-deps nginx nginx -t
 docker compose up -d --no-deps --force-recreate nginx
 curl --fail --silent --show-error --insecure --resolve yoiwerr.site:443:127.0.0.1 https://yoiwerr.site/journal/health >/dev/null
