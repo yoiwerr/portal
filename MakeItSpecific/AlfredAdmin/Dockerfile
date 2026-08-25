@@ -2,28 +2,25 @@ FROM golang:1.22-alpine AS builder
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates
-
 COPY go.mod go.sum ./
-RUN go mod download 2>/dev/null || true
+RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /admin ./cmd/gateway
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /admin ./cmd/gateway
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /healthcheck ./cmd/healthcheck
 
-# ── Runtime stage ──
-FROM alpine:3.20
-
-RUN apk add --no-cache ca-certificates curl
+FROM scratch
 
 WORKDIR /app
-COPY --from=builder /admin .
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=builder /admin /admin
+COPY --from=builder /healthcheck /healthcheck
 COPY migrations/ ./migrations/
 COPY static/ ./static/
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8080/api/v1/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 CMD ["/healthcheck"]
 
-CMD ["/app/admin"]
+ENTRYPOINT ["/admin"]
