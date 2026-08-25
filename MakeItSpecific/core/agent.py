@@ -101,7 +101,7 @@ class Agent:
 
     async def process_message(
         self, message, module="auto", background="", session_id=None,
-        clarify_round=0, dimensions=None, extra_context="",
+        clarify_round=0, dimensions=None, extra_context="", user_id="",
     ) -> dict:
         if dimensions is None:
             dimensions = {}
@@ -146,8 +146,7 @@ class Agent:
             message=message, module=module, background=background,
             session_id=session_id, extra_context=extra_context,
             dimensions=dimensions, clarify_round=clarify_round,
-            memory_context=memory_context,
-        )
+            memory_context=memory_context, user_id=user_id)
 
         result = await self.graph.ainvoke(initial_state)
 
@@ -207,7 +206,7 @@ class Agent:
 
     async def process_message_stream(
         self, message, module="auto", background="", session_id=None,
-        clarify_round=0, dimensions=None, extra_context="",
+        clarify_round=0, dimensions=None, extra_context="", user_id="",
     ) -> AsyncIterator[dict]:
         if dimensions is None:
             dimensions = {}
@@ -231,8 +230,7 @@ class Agent:
             message=message, module=module, background=background,
             session_id=session_id, extra_context=extra_context,
             dimensions=dimensions, clarify_round=clarify_round,
-            memory_context=memory_context,
-        )
+            memory_context=memory_context, user_id=user_id)
 
         input_tokens = _estimate_input_tokens(initial_state)
         logger.info(
@@ -482,7 +480,7 @@ class Agent:
     # ============================================================
 
     async def _build_initial_state(self, message, module, background, session_id,
-                             extra_context, dimensions, clarify_round, memory_context="") -> dict:
+                             extra_context, dimensions, clarify_round, memory_context="", user_id="") -> dict:
         # ── Context Engine: 构建对话上下文 ──
         ctx = await self.context_engine.build(
             session_store=self.sessions,
@@ -523,6 +521,9 @@ class Agent:
             # ── 执行进度追踪 ──
             "completed_steps": [],
             "execute_round": 0,
+            # ── 用户上下文（用量记录用）──
+            "user_id": user_id,
+            "session_id": session_id,
         }
 
     def list_sessions(self, module=None):

@@ -39,6 +39,7 @@ CHATLAB_FRONTEND = ROOT / "ChatHistoryAnalyst" / "frontend"
 
 API_CHATLAB = "http://127.0.0.1:8000"
 API_ALFRED = "http://127.0.0.1:8001"
+API_JOURNAL = "http://127.0.0.1:8002"
 
 ALFRED_API_PREFIXES = (
     "/api/chat", "/api/sessions", "/api/knowledge",
@@ -93,24 +94,19 @@ def _wait_for_backend(name: str, url: str, max_wait: int = 60):
     return False
 
 
-def _kill_port(port: int):
-    """Best-effort kill PID listening on port (cross-platform)."""
-    import subprocess as _sp
-    try:
-        if sys.platform == "win32":
-            out = _sp.check_output(
-                f'netstat -ano | findstr ":{port} " | findstr "LISTENING"',
-                shell=True, text=True
-            )
-            for line in out.strip().split("\n"):
-                parts = line.split()
-                if parts:
-                    _sp.run(["taskkill", "/F", "/PID", parts[-1]],
-                            capture_output=True)
-        else:
-            _sp.run(["fuser", "-k", f"{port}/tcp"], capture_output=True)
-    except Exception:
-        pass
+def _port_owner(port: int) -> str | None:
+    import shutil
+    if not shutil.which("ss"):
+        return None
+    result = subprocess.run(["ss", "-ltnp", f"sport = :{port}"], capture_output=True, text=True)
+    return result.stdout.strip() or None
+
+def _ensure_ports_free(ports: tuple[int, ...]) -> None:
+    occupied = {port: _port_owner(port) for port in ports}
+    occupied = {port: owner for port, owner in occupied.items() if owner}
+    if occupied:
+        details = "\n".join(f"  :{port}: {owner}" for port, owner in occupied.items())
+        raise SystemExit("端口已被占用，请先停止对应进程：\n" + details)
 
 
 # ============================================================
@@ -121,6 +117,10 @@ class PortalHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
+
+        # Private Journal reverse proxy
+        if path == "/journal" or path.startswith("/journal/"):
+            return self._proxy("GET", API_JOURNAL + self.path)
 
         # ── Alfred reverse proxy ──
         if path == "/alfred" or path.startswith("/alfred/"):
@@ -143,6 +143,9 @@ class PortalHandler(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         path = self.path.split("?")[0]
 
+        if path == "/journal" or path.startswith("/journal/"):
+            return self._proxy("POST", API_JOURNAL + self.path)
+
         if path == "/alfred" or path.startswith("/alfred/"):
             sub = path[len("/alfred"):] or "/"
             return self._proxy("POST", API_ALFRED + sub, prefix="/alfred")
@@ -152,6 +155,20 @@ class PortalHandler(http.server.SimpleHTTPRequestHandler):
             target = API_ALFRED if to_alfred else API_CHATLAB
             return self._proxy("POST", target + path, prefix="/alfred" if to_alfred else "")
 
+        self.send_response(405)
+        self.end_headers()
+
+    def do_PUT(self):
+        path = self.path.split("?")[0]
+        if path == "/journal" or path.startswith("/journal/"):
+            return self._proxy("PUT", API_JOURNAL + self.path)
+        self.send_response(405)
+        self.end_headers()
+
+    def do_DELETE(self):
+        path = self.path.split("?")[0]
+        if path == "/journal" or path.startswith("/journal/"):
+            return self._proxy("DELETE", API_JOURNAL + self.path)
         self.send_response(405)
         self.end_headers()
 
@@ -165,6 +182,15 @@ class PortalHandler(http.server.SimpleHTTPRequestHandler):
         return PORTAL_STATIC / clean
 
     def _serve_file(self, fp: Path):
+        allowed = (CHATLAB_FRONTEND if str(fp).startswith(str(CHATLAB_FRONTEND)) else PORTAL_STATIC).resolve()
+        try:
+            fp = fp.resolve()
+            if fp != allowed and allowed not in fp.parents:
+                self.send_error(403)
+                return
+        except OSError:
+            self.send_error(403)
+            return
         try:
             content = fp.read_bytes()
         except FileNotFoundError:
@@ -212,7 +238,7 @@ class PortalHandler(http.server.SimpleHTTPRequestHandler):
 
         try:
             req = urllib.request.Request(target, data=body, method=method)
-            for h in ("Content-Type", "Authorization", "Accept"):
+            for h in ("Content-Type", "Authorization", "Accept", "Cookie", "X-Journal-Request"):
                 if h in self.headers:
                     req.add_header(h, self.headers[h])
             with urllib.request.urlopen(req, timeout=120) as resp:
@@ -236,8 +262,8 @@ class PortalHandler(http.server.SimpleHTTPRequestHandler):
                     "Content-Length": str(len(resp_body)),
                 }
                 for k, v in resp.headers.items():
-                    if k.lower() == "cache-control":
-                        send_headers["Cache-Control"] = v
+                    if k.lower() in ("cache-control", "set-cookie"):
+                        send_headers["Cache-Control" if k.lower() == "cache-control" else "Set-Cookie"] = v
                 for k, v in send_headers.items():
                     self.send_header(k, v)
                 self.end_headers()
@@ -271,10 +297,7 @@ def main():
     for key in ("VIRTUAL_ENV", "VIRTUAL_ENV_PROMPT", "PIP_REQUIRE_VIRTUALENV"):
         env.pop(key, None)
 
-    # Clean stale ports
-    for port in (8000, 8001, 8080):
-        _kill_port(port)
-    time.sleep(0.5)
+    _ensure_ports_free((8000, 8001, 8002, 8080))
 
     # ── Launch backends in parallel ──
     print("[+] Launching backends...\n")
@@ -297,17 +320,30 @@ def main():
     )
     PROCS.append(("Alfred", alfred))
 
+    journal = subprocess.Popen(
+        ["uv", "run", "python", "-m", "uvicorn",
+         "app:app", "--host", "0.0.0.0", "--port", "8002"],
+        cwd=ROOT / "Journal",
+        env=env,
+        stdout=sys.stdout, stderr=sys.stderr,
+    )
+    PROCS.append(("Journal", journal))
+
     # ── Poll health concurrently ──
     threads = [
         threading.Thread(target=_wait_for_backend, args=("ChatLab", "http://127.0.0.1:8000/docs"), daemon=True),
         threading.Thread(target=_wait_for_backend, args=("Alfred", "http://127.0.0.1:8001/api/health"), daemon=True),
+        threading.Thread(target=_wait_for_backend, args=("Journal", "http://127.0.0.1:8002/journal/health"), daemon=True),
     ]
     for t in threads:
         t.start()
 
     # ── Dev Server :8080 ──
-    socketserver.TCPServer.allow_reuse_address = True
-    httpd = socketserver.TCPServer(("0.0.0.0", 8080), PortalHandler)
+    class ThreadingPortalServer(socketserver.ThreadingTCPServer):
+        allow_reuse_address = True
+        daemon_threads = True
+
+    httpd = ThreadingPortalServer(("0.0.0.0", 8080), PortalHandler)
 
     print("""
 ╔══════════════════════════════════════════════════════╗
@@ -317,17 +353,21 @@ def main():
 ║   Homepage  http://localhost:8080/                    ║
 ║   ChatLab   http://localhost:8080/chatlab             ║
 ║   Alfred    http://localhost:8080/alfred              ║
+║   Journal   http://localhost:8080/journal              ║
 ║                                                      ║
-║   Direct:   ChatLab :8000  |  Alfred :8001            ║
+║   Direct:   ChatLab :8000  |  Alfred :8001  |  Journal :8002 ║
 ║                                                      ║
 ║   Backends warming up... (see health poll above)      ║
 ║   Press Ctrl+C to stop all services                  ║
 ╚══════════════════════════════════════════════════════╝
 """)
 
-    # Wait for health polls (non-blocking — server is already up)
     for t in threads:
         t.join(timeout=60)
+    failed = [name for name, p in PROCS if p.poll() is not None]
+    if failed:
+        stop()
+        raise SystemExit("服务启动失败: " + ", ".join(failed))
 
     webbrowser.open("http://localhost:8080")
 

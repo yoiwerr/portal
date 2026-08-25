@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alfred · 管理后台</title>
+<link rel="stylesheet" href="/alfred/admin/static/css/admin.css">
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1>⚙ Alfred</h1>
+      <span class="subtitle">管理后台</span>
+    </div>
+    <nav>
+      <a href="#" class="nav-item active" data-panel="dashboard">📊 仪表盘</a>
+      <a href="#" class="nav-item" data-panel="models">🤖 模型管理</a>
+      <a href="#" class="nav-item" data-panel="users">👥 用户管理</a>
+    </nav>
+    <div class="sidebar-footer">
+      <span id="admin-user">admin</span>
+      <a href="/alfred/" class="back-link">← 返回对话</a>
+    </div>
+  </aside>
+
+  <main class="content">
+    <!-- Dashboard -->
+    <section class="panel active" id="panel-dashboard">
+      <h2>📊 Token 用量仪表盘</h2>
+      <div class="stats-grid" id="stats-summary"></div>
+      <h3 style="margin-top: 24px;">按模型</h3>
+      <div class="table-wrap" id="stats-by-model"></div>
+      <h3 style="margin-top: 24px;">最近调用</h3>
+      <div class="table-wrap" id="stats-recent"></div>
+    </section>
+
+    <!-- Models -->
+    <section class="panel" id="panel-models">
+      <div class="panel-header">
+        <h2>🤖 模型配置</h2>
+        <button class="btn-sm" id="btn-add-model">+ 添加模型</button>
+      </div>
+      <div class="table-wrap" id="models-list"></div>
+      <p class="hint">Key 策略: 每模型存储环境变量名 → 未设置则回退到 .env 默认 key</p>
+    </section>
+
+    <!-- Users -->
+    <section class="panel" id="panel-users">
+      <h2>👥 用户列表</h2>
+      <div class="table-wrap" id="users-list"></div>
+    </section>
+  </main>
+</div>
+
+<!-- Modal for add/edit model -->
+<div class="modal" id="model-modal">
+  <div class="modal-content">
+    <h3 id="modal-title">添加模型</h3>
+    <form id="model-form">
+      <input type="hidden" id="model-id">
+      <div class="field"><label>Alias</label><input type="text" id="m-alias" required placeholder="deepseek-chat"></div>
+      <div class="field"><label>Provider</label><select id="m-provider"><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option><option value="dashscope">DashScope</option></select></div>
+      <div class="field"><label>Model Name</label><input type="text" id="m-model" required placeholder="deepseek-chat"></div>
+      <div class="field"><label>Base URL</label><input type="text" id="m-url" required placeholder="https://api.deepseek.com/v1"></div>
+      <div class="field"><label>API Key Env Var</label><input type="text" id="m-keyenv" required placeholder="DEEPSEEK_API_KEY"><span class="hint">数据库只存变量名，实际 key 从环境变量读取</span></div>
+      <div class="modal-actions">
+        <button type="button" class="btn-secondary" id="btn-modal-cancel">取消</button>
+        <button type="submit" class="btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="/alfred/admin/static/js/admin.js"></script>
+</body>
+</html>

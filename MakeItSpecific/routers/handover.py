@@ -9,8 +9,10 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import JSONResponse
+
+from routers.deps import require_user, UserClaims
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +34,7 @@ def set_agent(agent):
 @router.post("/import")
 async def import_handover(
     file: UploadFile = File(...),
+    user: UserClaims = Depends(require_user),
 ):
     """
     上传项目记忆文件（.md 或 .json），解析后注入为 L2 上下文。

@@ -1,10 +1,12 @@
 include:
   - ChatHistoryAnalyst/docker-compose.yml
   - MakeItSpecific/docker-compose.yml
+  - MakeItSpecific/AlfredAdmin/docker-compose.yml
+  - Journal/docker-compose.yml
 
 services:
   nginx:
-    image: nginx:alpine
+    image: nginx:1.28.0-alpine
     container_name: portal-nginx
     ports:
       - "80:80"
@@ -19,5 +21,9 @@ services:
       api:
         condition: service_healthy
       specific-api:
+        condition: service_healthy
+      alfred-admin:
+        condition: service_healthy
+      journal:
         condition: service_healthy
     restart: unless-stopped

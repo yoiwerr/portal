@@ -9,11 +9,12 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sse_starlette.sse import EventSourceResponse
 
 from models.schemas import ChatRequest
+from routers.deps import require_user, UserClaims
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ def set_agent(agent):
 # 核心对话 — SSE 进度流式
 # ============================================================
 
-async def _stream_progress(request: ChatRequest):
+async def _stream_progress(request: ChatRequest, user: UserClaims):
     """
     SSE 生成器 — 节点级进度。
     在每个 graph 节点完成后推送 progress 事件，不做 token 流式。
@@ -51,6 +52,7 @@ async def _stream_progress(request: ChatRequest):
             clarify_round=request.clarify_round,
             dimensions=request.dimensions or {},
             extra_context=request.extra_context or "",
+            user_id=user.user_id if user else "",
         ):
             event_type = sse_event.get("event", "unknown")
             data = sse_event.get("data", {})
@@ -69,7 +71,7 @@ async def _stream_progress(request: ChatRequest):
 
 
 @router.post("/message")
-async def chat_message(request: ChatRequest):
+async def chat_message(request: ChatRequest, user: UserClaims = Depends(require_user)):
     """
     发送消息 → SSE 进度流式返回。
 
@@ -87,7 +89,7 @@ async def chat_message(request: ChatRequest):
     if _agent is None:
         raise HTTPException(status_code=503, detail="Agent 未初始化，请等待服务启动完成")
 
-    return EventSourceResponse(_stream_progress(request))
+    return EventSourceResponse(_stream_progress(request, user))
 
 
 # ============================================================
@@ -95,7 +97,7 @@ async def chat_message(request: ChatRequest):
 # ============================================================
 
 @router.post("/{session_id}/contract/confirm")
-async def confirm_contract(session_id: str):
+async def confirm_contract(session_id: str, user: UserClaims = Depends(require_user)):
     """用户确认任务契约。更新 contract_store 状态为 confirmed。"""
     if _agent is None:
         raise HTTPException(status_code=503, detail="Agent 未初始化")
@@ -110,7 +112,7 @@ async def confirm_contract(session_id: str):
 
 
 @router.post("/{session_id}/contract/update")
-async def update_contract(session_id: str, request: Request):
+async def update_contract(session_id: str, request: Request, user: UserClaims = Depends(require_user)):
     """用户修改契约字段（增量更新）。"""
     if _agent is None:
         raise HTTPException(status_code=503, detail="Agent 未初始化")
@@ -143,7 +145,7 @@ async def update_contract(session_id: str, request: Request):
 
 
 @router.get("/{session_id}/contract")
-async def get_contract(session_id: str):
+async def get_contract(session_id: str, user: UserClaims = Depends(require_user)):
     """获取当前会话契约（用于页面恢复）。"""
     if _agent is None:
         raise HTTPException(status_code=503, detail="Agent 未初始化")

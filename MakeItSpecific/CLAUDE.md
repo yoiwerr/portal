@@ -218,6 +218,14 @@ Alfred/
 
 ## Session 记录
 
+### 2026-07-27 — Docs 整理
+
+- `docs/` 重组：新增 `done/` 归档目录，迁移已完成的架构设计文档（`agent-audit-2026-07-20.md`、`harness-engineering-guide.md`、`context-engineering-guide.md`、`hallucination-prevention.md`、`three-layer-rag.md`）
+- `project-summary.md` 统计更新（文档数 10→18 篇 + 5 篇已归档，commit 数 40+→50+）
+- 修复多处交叉引用（`product-vision.md`、`ops-guide.md`、`rag-deep-dive.md` 中指向已移动/不存在文件的链接）
+- `阿福能力边界与工具使用规范-v1.0.txt` 添加 v2.0 取代声明
+- `capability-and-tools.md`、`交互流程图.md` 日期刷新至 2026-07-27
+
 ### 2026-07-24 — RAG 来源感知 + 工具卡片
 
 - `rag_service.py`: `ingest_knowledge_base()` glob 修复为 `rglob("*.md")`（子目录原来被忽略）

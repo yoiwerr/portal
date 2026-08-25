@@ -9,10 +9,11 @@ DELETE /api/sessions/{id}     — 删除会话
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
 from models.schemas import SessionSummary, SessionDetail, ChatMessage
+from routers.deps import require_user, UserClaims
 
 router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 
@@ -25,7 +26,7 @@ def set_agent(agent):
 
 
 @router.get("")
-async def list_sessions(module: str = None):
+async def list_sessions(module: str = None, user: UserClaims = Depends(require_user)):
     """获取历史会话列表。可选按 module 过滤。"""
     if _agent is None:
         raise HTTPException(status_code=503, detail="Agent 未初始化")

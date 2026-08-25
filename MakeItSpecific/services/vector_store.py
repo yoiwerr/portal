@@ -486,6 +486,25 @@ class PGVectorStore:
         cur.close()
         return deleted
 
+    async def delete_by_metadata(self, collection: str, metadata_filter: dict) -> int:
+        """按 metadata 条件删除文档。返回删除数量。
+
+        用于级联清理（如删除会话时清空其 L3 事实）。
+        复用 exists_by_metadata 的 JSONB 包含查询模式。
+        """
+        cur = self.conn.cursor()
+        filter_json = json.dumps(metadata_filter)
+        cur.execute(
+            sql.SQL("DELETE FROM {} WHERE metadata @> %s::jsonb").format(
+                sql.Identifier(collection)
+            ),
+            (filter_json,),
+        )
+        deleted = cur.rowcount
+        self.conn.commit()
+        cur.close()
+        return deleted
+
     async def count(self, collection: str) -> int:
         """返回 collection 中的文档数。"""
         cur = self.conn.cursor()

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alfred · 登录</title>
+<link rel="stylesheet" href="/alfred/auth/static/css/login.css">
+</head>
+<body>
+<div class="login-container">
+  <div class="login-card">
+    <div class="login-header">
+      <h1>🤖 Alfred</h1>
+      <p>AI 工作流增强助手</p>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="login">登录</button>
+      <button class="tab" data-tab="register">注册</button>
+    </div>
+
+    <!-- Login form -->
+    <form id="login-form" class="auth-form active">
+      <div class="field">
+        <label for="login-username">用户名</label>
+        <input type="text" id="login-username" placeholder="请输入用户名" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="login-password">密码</label>
+        <input type="password" id="login-password" placeholder="请输入密码" autocomplete="current-password" required>
+      </div>
+      <div class="error" id="login-error"></div>
+      <button type="submit" class="btn-primary" id="login-btn">登 录</button>
+    </form>
+
+    <!-- Register form -->
+    <form id="register-form" class="auth-form">
+      <div class="field">
+        <label for="reg-username">用户名</label>
+        <input type="text" id="reg-username" placeholder="3-64 个字符" autocomplete="username" required>
+      </div>
+      <div class="field">
+        <label for="reg-password">密码</label>
+        <input type="password" id="reg-password" placeholder="至少 6 个字符" autocomplete="new-password" required>
+      </div>
+      <div class="error" id="reg-error"></div>
+      <button type="submit" class="btn-primary" id="reg-btn">注 册</button>
+    </form>
+
+    <p class="footer-note">注册即登录，直接进入对话</p>
+  </div>
+</div>
+
+<script src="/alfred/auth/static/js/auth.js"></script>
+</body>
+</html>

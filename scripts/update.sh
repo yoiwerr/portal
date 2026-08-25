@@ -72,6 +72,7 @@ CHANGED_FILES=$(git diff --name-only "$LOCAL_HEAD" HEAD 2>/dev/null || echo "")
 rebuild_all=false
 rebuild_chatlab=false
 rebuild_specific=false
+rebuild_journal=false
 
 if $FORCE_REBUILD; then
     rebuild_all=true
@@ -100,6 +101,10 @@ else
         rebuild_specific=true
         echo "  → MakeItSpecific 有变更，将重建"
     fi
+    if echo "$CHANGED_FILES" | grep -q "^Journal/"; then
+        rebuild_journal=true
+        echo "  → Journal 有变更，将重建"
+    fi
     if echo "$CHANGED_FILES" | grep -q "^ChatHistoryAnalyst/"; then
         rebuild_chatlab=true
         echo "  → ChatLab 有变更，将重建"
@@ -116,6 +121,9 @@ else
     fi
 fi
 
+# Journal 与其他子项目同时变化时全部重建，避免遗漏服务。
+if $rebuild_journal && { $rebuild_specific || $rebuild_chatlab; }; then rebuild_all=true; fi
+
 # ── 构建 & 重启 ──
 echo ""
 echo "==== 构建 & 重启 ===="
@@ -127,6 +135,12 @@ if $rebuild_all; then
     echo "→ 重建全部服务"
     docker compose build
     docker compose up -d --force-recreate
+elif $rebuild_journal; then
+    echo "→ 重建 Journal"
+    docker compose build journal
+    docker compose run --rm journal uv run alembic upgrade head
+    docker compose up -d --force-recreate journal
+    docker compose restart nginx
 elif $rebuild_specific && $rebuild_chatlab; then
     echo "→ 重建 specific-api + api"
     docker compose build specific-api

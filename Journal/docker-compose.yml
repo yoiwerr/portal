@@ -1,0 +1,18 @@
+services:
+  journal:
+    build: .
+    container_name: portal-journal
+    environment:
+      JOURNAL_DATABASE_URL: postgresql+psycopg://journal_user:${JOURNAL_DB_PASSWORD:?set JOURNAL_DB_PASSWORD}@postgres:5432/journal
+    expose:
+      - "8000"
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'from urllib.request import urlopen; urlopen(\"http://localhost:8000/journal/health\")'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s

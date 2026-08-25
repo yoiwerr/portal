@@ -25,6 +25,7 @@ class ChatRequest(BaseModel):
     extra_context: Optional[str] = Field(default="", description="额外上下文（如加载的MD文件）")
     clarify_round: int = Field(default=0, description="当前追问轮数")
     dimensions: Optional[dict] = Field(default_factory=dict, description="累积的维度信息")
+    user_id: Optional[str] = Field(default=None, description="登录用户 ID（从 JWT 解析）")
 
 
 class ChatMessage(BaseModel):

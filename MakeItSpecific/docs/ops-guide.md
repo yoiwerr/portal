@@ -569,5 +569,5 @@ curl http://localhost/specific/api/feedback/stats | python -m json.tool
 | [detection-strategy.md](detection-strategy.md) | 四条检测链路的架构设计 + 告警阈值 |
 | [hallucination-prevention.md](done/hallucination-prevention.md) | 五层幻觉防御 + Badcase 自动保存设计 |
 | [debug-report-2026-07-14.md](to_log/debug-report-2026-07-14.md) | 真实 debug 全链路记录（4 个 bug 的排查过程） |
-| [boundary.md](../boundary.md) | 约束规范与检查清单（Harness Engineering 落地文件） |
-| [PROGRESS.md](../PROGRESS.md) | 项目进度总结 + 待做事项 |
+| [CLAUDE.md](../CLAUDE.md) | 项目架构指南 + 开发文档 |
+| [harness-engineering-guide.md](done/harness-engineering-guide.md) | Harness Engineering 设计指南 |

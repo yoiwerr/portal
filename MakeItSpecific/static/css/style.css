@@ -74,6 +74,21 @@ body {
 .status-text { font-size: 0.66rem; color: var(--text-dim); }
 .topbar-right { display: flex; align-items: center; gap: 10px; }
 
+/* ── Topbar User Area ── */
+.topbar-user-area { display: flex; align-items: center; gap: 8px; }
+.topbar-user { font-size: 0.78rem; color: var(--text); font-weight: 500; }
+.topbar-admin-badge {
+  font-size: 0.6rem; color: var(--gold-light); background: rgba(185,152,88,0.12);
+  padding: 1px 5px; border-radius: 3px; margin-left: 4px;
+}
+.topbar-link {
+  font-size: 0.7rem; color: var(--text-dim); text-decoration: none;
+  padding: 3px 8px; border-radius: var(--radius-sm); transition: all var(--transition);
+}
+.topbar-link:hover { color: var(--text); background: var(--bg-soft); }
+.topbar-admin-link { color: var(--gold-light); }
+.topbar-admin-link:hover { background: rgba(185,152,88,0.08); }
+
 .btn-outline {
   display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px;
   border: 1px solid var(--border); border-radius: var(--radius-sm);

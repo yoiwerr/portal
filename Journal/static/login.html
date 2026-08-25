@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>登录 - 私人日志</title>
+  <link rel="stylesheet" href="/journal/assets/journal.css">
+</head>
+<body class="login-body">
+  <main class="login-layout">
+    <a class="back-link" href="/">返回 Portal</a>
+
+    <section class="login-panel" aria-labelledby="login-title">
+      <div class="login-index" aria-hidden="true">
+        <span>Y</span>
+        <span>J</span>
+      </div>
+
+      <div class="login-content">
+        <p class="site-name">yoiwerr / 日志</p>
+        <h1 id="login-title">私人日志</h1>
+
+        <form id="loginForm" class="login-form">
+          <label for="username">账号</label>
+          <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+
+          <label for="password">密码</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+
+          <p class="form-error" id="loginError" role="alert" aria-live="polite"></p>
+          <button class="primary-button" type="submit">登录</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <script src="/journal/assets/login.js" defer></script>
+</body>
+</html>

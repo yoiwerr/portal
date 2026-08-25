@@ -6,6 +6,112 @@
   'use strict';
 
   /* ═══════════════════════════════════════════════════════
+     Auth — JWT token management (shared with Go AgentGateway)
+     ═══════════════════════════════════════════════════════ */
+  var AUTH_API = '/alfred/api/v1';
+  var LOGIN_URL = '/alfred/auth/';
+  var ADMIN_URL = '/alfred/admin/';
+
+  function getToken() { return localStorage.getItem('alfred_token'); }
+  function getRefreshToken() { return localStorage.getItem('alfred_refresh'); }
+  function authHeaders() {
+    return { 'Authorization': 'Bearer ' + getToken() };
+  }
+
+  async function refreshAccessToken() {
+    var rt = getRefreshToken();
+    if (!rt) return false;
+    try {
+      var resp = await fetch(AUTH_API + '/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: rt }),
+      });
+      if (!resp.ok) return false;
+      var data = await resp.json();
+      localStorage.setItem('alfred_token', data.access_token);
+      localStorage.setItem('alfred_refresh', data.refresh_token);
+      return true;
+    } catch (_) { return false; }
+  }
+
+  async function checkAuth() {
+    var token = getToken();
+    if (!token) { window.location.href = LOGIN_URL; return null; }
+
+    // Verify token is still valid
+    try {
+      var resp = await fetch(AUTH_API + '/auth/me', { headers: authHeaders() });
+      if (resp.ok) {
+        var me = await resp.json();
+        setupUserUI(me);
+        return me;
+      }
+    } catch (_) {}
+
+    // Try refresh
+    var refreshed = await refreshAccessToken();
+    if (refreshed) {
+      try {
+        var resp2 = await fetch(AUTH_API + '/auth/me', { headers: authHeaders() });
+        if (resp2.ok) { var me = await resp2.json(); setupUserUI(me); return me; }
+      } catch (_) {}
+    }
+
+    // Failed — clear and redirect to login
+    localStorage.removeItem('alfred_token');
+    localStorage.removeItem('alfred_refresh');
+    window.location.href = LOGIN_URL;
+    return null;
+  }
+
+  function setupUserUI(me) {
+    var el = document.getElementById('topbarUserArea');
+    if (!el) return;
+    var isAdmin = me.role === 'admin';
+    el.innerHTML =
+      '<span class="topbar-user">' + escapeHtml(me.username) + (isAdmin ? ' <span class="topbar-admin-badge">管理</span>' : '') + '</span>' +
+      (isAdmin ? '<a href="' + ADMIN_URL + '" class="topbar-link topbar-admin-link">后台</a>' : '') +
+      '<a href="#" class="topbar-link" onclick="window.alfredLogout()">退出</a>';
+  }
+
+  window.alfredLogout = function () {
+    var rt = getRefreshToken();
+    var token = getToken();
+    if (rt && token) {
+      fetch(AUTH_API + '/auth/logout', {
+        method: 'POST',
+        headers: Object.assign(authHeaders(), { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ refresh_token: rt }),
+      }).catch(function () {});
+    }
+    localStorage.removeItem('alfred_token');
+    localStorage.removeItem('alfred_refresh');
+    window.location.href = LOGIN_URL;
+  };
+
+  async function fetchWithAuth(url, options) {
+    options = options || {};
+    options.headers = Object.assign(options.headers || {}, authHeaders());
+    var resp = await fetch(url, options);
+
+    // 401 → try refresh once, then retry
+    if (resp.status === 401) {
+      var ok = await refreshAccessToken();
+      if (ok) {
+        options.headers = Object.assign(options.headers || {}, authHeaders());
+        return fetch(url, options);
+      }
+      // Refresh failed → redirect to login
+      localStorage.removeItem('alfred_token');
+      localStorage.removeItem('alfred_refresh');
+      window.location.href = LOGIN_URL;
+      throw new Error('auth_expired');
+    }
+    return resp;
+  }
+
+  /* ═══════════════════════════════════════════════════════
      State
      ═══════════════════════════════════════════════════════ */
   var sessionId = null;
@@ -22,9 +128,13 @@
      Init
      ═══════════════════════════════════════════════════════ */
   function init() {
-    document.getElementById('userInput').focus();
-    document.getElementById('chatArea').addEventListener('click', function(e) {
-      if (e.target === this) document.getElementById('userInput').focus();
+    // Auth check — redirects to login if not authenticated
+    checkAuth().then(function(user) {
+      if (!user) return; // checkAuth handles redirect
+      document.getElementById('userInput').focus();
+      document.getElementById('chatArea').addEventListener('click', function(e) {
+        if (e.target === this) document.getElementById('userInput').focus();
+      });
     });
   }
 
@@ -167,7 +277,7 @@
   window.confirmContract = async function () {
     if (!currentContract || !sessionId) return;
     try {
-      var resp = await fetch('/api/chat/' + sessionId + '/contract/confirm', { method: 'POST' });
+      var resp = await fetchWithAuth('/api/chat/' + sessionId + '/contract/confirm', { method: 'POST' });
       if (resp.ok) {
         var data = await resp.json();
         contractConfirmed = true;
@@ -242,7 +352,7 @@
       if (el) updates[f] = el.value.split('\n').filter(function(s) { return s.trim(); });
     });
     try {
-      var resp = await fetch('/api/chat/' + sessionId + '/contract/update', {
+      var resp = await fetchWithAuth('/api/chat/' + sessionId + '/contract/update', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates)
       });
       if (resp.ok) { var data = await resp.json(); currentContract = data.contract; renderContract(currentContract); }
@@ -293,7 +403,7 @@
 
     importedContext = '';
 
-    fetch('/api/chat/message', {
+    fetchWithAuth('/api/chat/message', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: body
@@ -562,7 +672,7 @@
     if (btn) { btn.disabled = true; btn.textContent = '导入中…'; }
     try {
       var form = new FormData(); form.append('file', selectedFile);
-      var resp = await fetch('/api/sessions/import', { method: 'POST', body: form });
+      var resp = await fetchWithAuth('/api/sessions/import', { method: 'POST', body: form });
       if (!resp.ok) { var err = await resp.json().catch(function() { return {}; }); throw new Error(err.detail || 'HTTP ' + resp.status); }
       var result = await resp.json();
       closeModal('modalImport');

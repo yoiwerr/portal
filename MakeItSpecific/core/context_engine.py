@@ -410,24 +410,32 @@ class ContextEngine:
     async def _persist_facts_to_pg(
         self, session_id: str, turn_count: int, facts: list[str],
     ):
-        """将 L3 事实写入 PGVector session_memory 表。"""
-        doc_text = "\n".join(facts)
-        embedding = self.embedding_fn([doc_text])[0]
-
+        """将 L3 事实逐条写入 PGVector session_memory 表（一条事实 = 一行，细粒度检索）。"""
         import hashlib
-        fact_id = hashlib.md5(f"{session_id}:{turn_count}".encode()).hexdigest()[:16]
+
+        # 批量生成 embedding（embed_documents 接受列表，一次调用返回全部）
+        embeddings = self.embedding_fn(facts)
+
+        documents, metadatas, ids = [], [], []
+        for i, (fact, emb) in enumerate(zip(facts, embeddings)):
+            fact_id = hashlib.md5(
+                f"{session_id}:{turn_count}:{i}".encode()
+            ).hexdigest()[:16]
+            documents.append(fact)
+            metadatas.append({
+                "session_id": session_id,
+                "turn_number": turn_count,
+                "fact_index": i,
+                "type": "l3_facts",
+            })
+            ids.append(fact_id)
 
         await self.vector_store.add(
             collection="session_memory",
-            documents=[doc_text],
-            embeddings=[embedding],
-            metadatas=[{
-                "session_id": session_id,
-                "turn_number": turn_count,
-                "fact_count": len(facts),
-                "type": "l3_facts",
-            }],
-            ids=[fact_id],
+            documents=documents,
+            embeddings=embeddings,
+            metadatas=metadatas,
+            ids=ids,
         )
 
     async def _store_facts_memory(self, session_id: str, turn_count: int, facts: list[str]):
@@ -456,7 +464,7 @@ class ContextEngine:
     async def _retrieve_facts(self, session_id: str, query: str) -> str:
         """从 L3 事实库中召回相关事实。
 
-        主路径: PGVector 向量相似度检索（语义匹配，跨会话可用）
+        主路径: PGVector 向量相似度检索（语义匹配，按会话隔离）
         后备:   内存字典关键词匹配（LLM 不可用时）
         """
         # ── 主路径: PGVector 语义检索 ──
@@ -466,7 +474,7 @@ class ContextEngine:
                 results = await self.vector_store.search(
                     collection="session_memory",
                     query_embedding=query_emb,
-                    top_k=5,
+                    top_k=10,
                     filter_meta={"session_id": session_id, "type": "l3_facts"},
                 )
                 if results:
@@ -526,17 +534,27 @@ class ContextEngine:
     # ============================================================
 
     async def cleanup_session(self, session_id: str):
-        """删除会话时调用：清理该会话的所有内存缓存。"""
+        """删除会话时调用：清理该会话的内存缓存 + PGVector 中的 L3 事实。"""
         async with self._lock:
             self._running_summaries.pop(session_id, None)
             self._fact_store.pop(session_id, None)
             self._fact_timestamps.pop(session_id, None)
 
-    def _evict_old_sessions_locked(self, max_sessions: int = 200):
-        """LRU 驱逐（须在已持有 _lock 时调用）。"""
-        """LRU 驱逐：当缓存 session 数超过阈值时，删除最旧的条目。
-        在每次新会话写入时调用（非阻塞，O(1)）。
-        """
+        # 级联删除 PGVector 中该会话的 L3 事实（避免孤儿数据）
+        if self.vector_store:
+            try:
+                deleted = await self.vector_store.delete_by_metadata(
+                    collection="session_memory",
+                    metadata_filter={"session_id": session_id, "type": "l3_facts"},
+                )
+                logger.info(
+                    f"[ContextEngine] 级联删除 L3 事实 (会话 {session_id}): {deleted} 行"
+                )
+            except Exception as e:
+                logger.warning(f"[ContextEngine] 级联删除 L3 事实失败 (非关键): {e}")
+
+    def _evict_old_sessions_locked(self, max_sessions: int = 500):
+        """LRU 驱逐（须在已持有 _lock 时调用）：缓存 session 数超过阈值时删除最旧条目。"""
         total = len(self._fact_store)
         if total <= max_sessions:
             return
@@ -551,11 +569,6 @@ class ContextEngine:
             self._running_summaries.pop(sid, None)
             self._fact_store.pop(sid, None)
             self._fact_timestamps.pop(sid, None)
-
-    # ============================================================
-    # 注入
-    # ============================================================
-        return "\n".join(lines)
 
     # ============================================================
     # 注入
@@ -816,7 +829,7 @@ def _safe_parse_json(content: str) -> dict:
 def _extract_query_keywords(query: str) -> list[str]:
     """从 query 中提取核心关键词（用于 L3 检索匹配）。"""
     # 移除标点和停用词
-    cleaned = re.sub(r'[，。！？、：；""''（）\s]+', ' ', query)
+    cleaned = re.sub(r'[，。！？、：；""''（）\\s]+', ' ', query)
     words = cleaned.split()
 
     # 过滤短词和停用词

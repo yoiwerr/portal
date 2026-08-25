@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light">
+  <title>私人日志</title>
+  <link rel="stylesheet" href="/journal/assets/journal.css">
+</head>
+<body>
+  <header class="journal-header">
+    <a class="journal-brand" href="/journal/">yoiwerr <span>日志</span></a>
+    <div class="header-actions">
+      <button class="text-button" id="logoutButton" type="button">退出</button>
+      <button class="primary-button compact" id="newEntryButton" type="button">写日志</button>
+    </div>
+  </header>
+
+  <main class="journal-main">
+    <section class="journal-heading" aria-labelledby="page-title">
+      <p id="todayLabel" class="today-label"></p>
+      <h1 id="page-title">日常记录</h1>
+      <p class="entry-count" id="entryCount" aria-live="polite"></p>
+    </section>
+
+    <section class="feed" id="entryFeed" aria-label="日志列表">
+      <p class="loading-state" id="loadingState">正在读取...</p>
+    </section>
+  </main>
+
+  <dialog class="entry-dialog" id="entryDialog">
+    <form class="entry-form" id="entryForm">
+      <div class="dialog-header">
+        <h2 id="dialogTitle">写日志</h2>
+        <button class="text-button" id="closeDialogButton" type="button">关闭</button>
+      </div>
+
+      <input id="entryId" type="hidden">
+
+      <label for="entryDate">日期</label>
+      <input id="entryDate" name="entry_date" type="date" required>
+
+      <label for="entryTitle">标题</label>
+      <input id="entryTitle" name="title" type="text" maxlength="120" required>
+
+      <label for="entryContent">内容</label>
+      <textarea id="entryContent" name="content" rows="12" maxlength="100000" required></textarea>
+
+      <p class="form-error" id="entryError" role="alert" aria-live="polite"></p>
+
+      <div class="form-actions">
+        <button class="text-button" id="cancelEntryButton" type="button">取消</button>
+        <button class="primary-button" type="submit">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/journal/assets/journal.js" defer></script>
+</body>
+</html>

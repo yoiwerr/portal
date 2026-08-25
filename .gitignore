@@ -10,6 +10,14 @@ dist/
 
 # Secrets & env
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Database backup artifacts
+*.dump
+*.sql.gz
 
 # IDE
 .idea/
@@ -24,8 +32,8 @@ Thumbs.db
 # Docker
 pgdata/
 
-# Claude Code local settings
-.claude/settings.local.json
+# Claude/Codex local settings (also inside subprojects)
+**/.claude/settings.local.json
 
 # Debug logs
 *.log

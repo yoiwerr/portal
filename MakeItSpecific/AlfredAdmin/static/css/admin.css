@@ -1,0 +1,106 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0f1117;
+  color: #e0e0e0;
+  min-height: 100vh;
+}
+
+.admin-layout { display: flex; min-height: 100vh; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 220px;
+  background: #161822;
+  border-right: 1px solid #2a2d3a;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 0;
+}
+.sidebar-header { padding: 0 20px 20px; border-bottom: 1px solid #2a2d3a; }
+.sidebar-header h1 { font-size: 18px; color: #fff; }
+.sidebar-header .subtitle { font-size: 12px; color: #666; }
+
+nav { flex: 1; padding: 12px 0; }
+.nav-item {
+  display: block; padding: 10px 20px; color: #888; text-decoration: none;
+  font-size: 14px; transition: .15s;
+}
+.nav-item:hover, .nav-item.active { color: #a78bfa; background: rgba(167,139,250,0.08); }
+
+.sidebar-footer { padding: 16px 20px; border-top: 1px solid #2a2d3a; font-size: 13px; color: #666; }
+.back-link { display: block; margin-top: 8px; color: #a78bfa; text-decoration: none; font-size: 13px; }
+.back-link:hover { text-decoration: underline; }
+
+/* ── Content ── */
+.content { flex: 1; padding: 32px; overflow-y: auto; }
+.panel { display: none; }
+.panel.active { display: block; }
+.panel h2 { font-size: 20px; color: #fff; margin-bottom: 20px; }
+
+.panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+.panel-header h2 { margin-bottom: 0; }
+
+/* ── Stats grid ── */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
+.stat-card {
+  background: #1a1d2a; border: 1px solid #2a2d3a; border-radius: 10px;
+  padding: 18px;
+}
+.stat-card .label { font-size: 12px; color: #888; margin-bottom: 4px; }
+.stat-card .value { font-size: 24px; font-weight: 700; color: #a78bfa; }
+.stat-card .sub   { font-size: 12px; color: #666; margin-top: 2px; }
+
+/* ── Table ── */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 10px 14px; text-align: left; border-bottom: 1px solid #2a2d3a; }
+th { color: #888; font-weight: 600; font-size: 12px; text-transform: uppercase; }
+td { color: #ccc; }
+tr:hover td { background: rgba(167,139,250,0.04); }
+
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;
+}
+.badge-success { background: rgba(34,197,94,0.15); color: #22c55e; }
+.badge-danger  { background: rgba(239,68,68,0.15); color: #ef4444; }
+.badge-info    { background: rgba(167,139,250,0.15); color: #a78bfa; }
+.badge-warn    { background: rgba(251,191,36,0.15); color: #fbbf24; }
+
+/* ── Buttons ── */
+.btn-primary {
+  padding: 8px 20px; background: #7c3aed; color: #fff; border: none; border-radius: 8px;
+  font-size: 14px; cursor: pointer;
+}
+.btn-primary:hover { background: #6d28d9; }
+.btn-sm {
+  padding: 6px 14px; background: #7c3aed; color: #fff; border: none; border-radius: 6px;
+  font-size: 13px; cursor: pointer;
+}
+.btn-secondary {
+  padding: 8px 20px; background: #2a2d3a; color: #ccc; border: none; border-radius: 8px;
+  font-size: 14px; cursor: pointer;
+}
+.btn-danger { color: #ef4444; background: none; border: none; cursor: pointer; font-size: 13px; }
+
+/* ── Modal ── */
+.modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; z-index: 100; }
+.modal.open { display: flex; }
+.modal-content {
+  background: #1a1d2a; border: 1px solid #2a2d3a; border-radius: 14px; padding: 28px;
+  width: 100%; max-width: 480px;
+}
+.modal-content h3 { margin-bottom: 20px; color: #fff; }
+.modal .field { margin-bottom: 14px; }
+.modal .field label { display: block; font-size: 13px; color: #bbb; margin-bottom: 4px; }
+.modal .field input, .modal .field select {
+  width: 100%; padding: 10px 12px; background: #0f1117; border: 1px solid #2a2d3a;
+  border-radius: 6px; color: #fff; font-size: 14px; outline: none;
+}
+.modal .field input:focus, .modal .field select:focus { border-color: #7c3aed; }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+/* ── Hint ── */
+.hint { font-size: 12px; color: #666; margin-top: 12px; }
+.modal .hint { display: block; margin-top: 2px; }

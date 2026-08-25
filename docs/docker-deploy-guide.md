@@ -401,3 +401,82 @@ services:
 6. **nginx 的 `depends_on` 用 `service_healthy` 而不是 `service_started`。** start 了不代表健康，nginx 会在后端没准备好时返回 502。
 
 7. **docker compose 的 `include` 路径相对于被 include 文件的目录。** MakeItSpecific/docker-compose.yml 里的 `build: .` 是 MakeItSpecific 目录，不是 portal 根目录。
+
+
+## 已有 Portal 服务器加入 Journal（Git 拉取部署）
+
+以下步骤适用于服务器已经运行旧版 Portal、且必须保留现有 PostgreSQL volume 的情况。
+
+1. 在本地提交本次代码后推送：
+
+```bash
+git add Journal ops scripts/check-production-config.sh scripts/deploy-journal.sh \
+  docs/postgresql-backup-and-restore.md docs/docker-deploy-guide.md \
+  .env.example docker-compose.yml nginx/default.conf run_dev.py \
+  MakeItSpecific/pyproject.toml MakeItSpecific/uv.lock MakeItSpecific/AlfredAdmin/
+git commit -m "deploy portal journal with postgres"
+git push
+```
+
+不要提交 `.env`、`Journal/data/`、`Journal/.venv/`、TLS 私钥或任何真实密码。它们被 `.gitignore` 排除，必须留在服务器或通过安全的密钥管理方式注入。
+
+2. 登录服务器并进入现有项目目录：
+
+```bash
+cd ~/portal
+git status --short
+git pull --ff-only
+cp .env.example .env   # 仅首次；已有 .env 不要覆盖
+chmod 600 .env
+```
+
+3. 编辑 `.env`，至少填写 `PGSQLPASSWORD`（现有 PostgreSQL 管理密码）、`JOURNAL_DB_PASSWORD`、`JWT_SECRET`、`ADMIN_INIT_PASSWORD` 以及已有 LLM 密钥。不要把这些值提交到 Git。
+
+4. 确认证书路径仍然存在，然后运行：
+
+```bash
+./scripts/deploy-journal.sh
+```
+
+脚本不会删除 volume、不会重命名已有数据库，也不会执行 `docker compose down -v`；它只幂等创建 `journal_user` 和 `journal`，运行 Journal Alembic，构建并启动 Journal，再重载 nginx。
+
+5. 如果只想先迁移和启动、不创建用户：
+
+```bash
+./scripts/deploy-journal.sh --skip-user
+```
+
+之后创建用户：
+
+```bash
+docker compose run --rm -e JOURNAL_ADMIN_USERNAME=yoiwerr journal uv run python create_user.py
+```
+
+6. 验证：
+
+```bash
+docker compose ps
+docker compose logs --tail=100 journal
+curl --fail --silent --show-error --insecure \
+  --resolve yoiwerr.site:443:127.0.0.1 \
+  https://yoiwerr.site/journal/health
+```
+
+7. 启用每日备份：
+
+```bash
+sudo install -m 0644 ops/postgres/portal-backup.service /etc/systemd/system/
+sudo install -m 0644 ops/postgres/portal-backup.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now portal-backup.timer
+systemctl list-timers portal-backup.timer
+```
+
+备份脚本需要 `PGPASSWORD` 和 `BACKUP_DIR` 等环境变量，当前容器内备份方案不需要数据库密码文件；systemd 示例默认项目位于 `/home/yoiwerr/portal`。如果服务器路径不同，安装 service 前修改 `PORTAL_DIR` 和 `ExecStart`。
+
+### Git 拉取后必须手动放入服务器的文件
+
+- `~/portal/.env`：生产密码、JWT、LLM 密钥和 Journal 数据库密码。
+- `/etc/letsencrypt/live/yoiwerr.site/{fullchain.pem,privkey.pem}`：TLS 证书（如果服务器已有则无需重新放置）。
+
+不需要手动放入的文件：Journal 源码、迁移、Dockerfile、脚本和文档都会由 Git 拉取；`Journal/data/` 和 `.venv/` 是本地运行产物，不应复制到生产。

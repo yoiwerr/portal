@@ -15,6 +15,7 @@ Alfred LangGraph 图定义 — V4 ReAct Agentic Loop + Router + 多 Agent Panel�
 
 import json
 import logging
+import os
 from typing import TypedDict, Annotated, Literal, Optional
 
 from langgraph.graph import StateGraph, END, START
@@ -54,6 +55,40 @@ MAX_CHECKPOINT_RETRIES = 1     # checkpoint 失败最多重试 1 次
 
 # ── 运行时阈值（create_graph 中从 config 覆写）──
 max_clarify_rounds = DEFAULT_MAX_CLARIFY_ROUNDS
+
+
+def _record_usage_from_response(state: dict, response, provider: str = "", model_name: str = "", duration_ms: float = 0.0):
+    """从 LLM 响应中提取 usage_metadata 并异步写入 token_usage 表。"""
+    user_id = state.get("user_id", "")
+    session_id = state.get("session_id", "")
+    if not user_id:
+        return
+
+    try:
+        usage = getattr(response, "usage_metadata", None) or {}
+        input_tokens = usage.get("input_tokens", 0)
+        output_tokens = usage.get("output_tokens", 0)
+
+        if not provider:
+            provider = getattr(response, "response_metadata", {}).get("model_name", "")
+            if not provider:
+                provider = os.getenv("LLM_PROVIDER", "")
+        if not model_name:
+            model_name = getattr(response, "response_metadata", {}).get("model_name", "") or os.getenv("LLM_MODEL", "")
+
+        if input_tokens or output_tokens:
+            from services.usage_service import record_usage
+            record_usage(
+                user_id=user_id,
+                provider=provider or "unknown",
+                model_name=model_name or "unknown",
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                duration_ms=duration_ms,
+                session_id=session_id,
+            )
+    except Exception:
+        pass  # 用量记录失败不影响对话
 
 
 # ============================================================
@@ -120,6 +155,8 @@ class AgentState(TypedDict):
     # ── 执行进度追踪 ──
     completed_steps: list[str]    # 已完成的执行步骤（用于重试时知道做到哪了）
     execute_round: int            # 当前执行轮次（checkpoint→execute 重试时递增）
+    user_id: str                 # 登录用户 ID（从 JWT 解析，用于用量记录）
+    session_id: str              # 会话 ID（用于用量关联）
 
 
 # ── Skill System Prompt 映射 ──
@@ -286,6 +323,7 @@ async def planner_node(state: AgentState, model=None, rag_service=None) -> dict:
             SystemMessage(content=planner_prompt),
             HumanMessage(content="请输出 JSON 分析结果。"),
         ])
+        _record_usage_from_response(state, response, provider="planner", model_name="planner")
         plan = _parse_planner_json(response.content)
     except Exception as e:
         logger.warning(f"[Planner] LLM 失败，降级: {e}")
@@ -487,7 +525,12 @@ async def execute_node(state: AgentState, skills=None, model=None) -> dict:
         react_agent = create_react_agent(model=parallel_model, tools=tools, prompt=full_system_prompt)
         result = await react_agent.ainvoke({"messages": [HumanMessage(content=message)]})
 
+        # 从 ReAct Agent 输出中提取用量
         output_messages = result.get("messages", [])
+        for m in reversed(output_messages):
+            if hasattr(m, "usage_metadata") and m.usage_metadata:
+                _record_usage_from_response(state, m)
+                break
         for m in reversed(output_messages):
             if isinstance(m, AIMessage) and m.content:
                 output = m.content
@@ -598,6 +641,7 @@ async def checkpoint_node(state: AgentState, model=None) -> dict:
             HumanMessage(content="请评估语义对齐程度，输出 JSON。"),
         ])
         checkpoint = _parse_checkpoint_json(response.content)
+        _record_usage_from_response(state, response, provider="checkpoint", model_name="checkpoint")
     except Exception as e:
         logger.warning(f"[Checkpoint] LLM 失败，默认通过: {e}")
         return {"checkpoint_feedback": ""}
@@ -672,6 +716,7 @@ async def reflect_node(state: AgentState, model=None) -> dict:
             HumanMessage(content="请评估输出质量，输出 JSON。"),
         ])
         reflection = _parse_reflection_json(response.content)
+        _record_usage_from_response(state, response, provider="reflector", model_name="reflector")
     except Exception as e:
         logger.warning(f"[Reflector] LLM 失败: {e}")
         reflection = {"pass": True, "score": 7}

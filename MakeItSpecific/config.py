@@ -23,6 +23,7 @@ class Config:
     pg_database: str = "alfred"
     pg_user: str = "postgres"
     pg_password: str = ""
+    jwt_secret: str = ""
     llm_provider: str = "auto"
     llm_model: str = "qwen-plus"
     llm_temperature: float = 0.7
@@ -87,6 +88,7 @@ class Config:
         c.deepseek_api_key = os.getenv("DEEPSEEK_API_KEY","")
         c.openai_api_key = os.getenv("OPENAI_API_KEY","")
         c.pg_password = os.getenv("PGSQLPASSWORD","")
+        c.jwt_secret = os.getenv("JWT_SECRET","")
         c.memory_enabled = os.getenv("MEMORY_ENABLED","true").lower() != "false"
         c.sandbox_enabled = os.getenv("SANDBOX_ENABLED","false").lower() == "true"
         c.rerank_enabled = os.getenv("RERANK_ENABLED","true").lower() != "false"

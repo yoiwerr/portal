@@ -1,0 +1,11 @@
+[Unit]
+Description=Portal PostgreSQL daily backups
+Requires=docker.service
+After=docker.service
+[Service]
+Type=oneshot
+User=root
+Environment=PORTAL_DIR=/home/yoiwerr/portal
+Environment=BACKUP_DIR=/var/backups/portal/postgres
+ExecStart=/home/yoiwerr/portal/ops/postgres/backup.sh journal
+ExecStart=/home/yoiwerr/portal/ops/postgres/backup.sh alfred
