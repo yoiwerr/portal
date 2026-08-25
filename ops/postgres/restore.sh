@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 db="${1:?usage: restore.sh database dump}"; dump="${2:?usage: restore.sh database dump}"
-portal_dir="${PORTAL_DIR:-/opt/portal}"; cd "$portal_dir"
+portal_dir="${PORTAL_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"; cd "$portal_dir"
 [[ -f "$dump" ]] || { echo 'dump not found' >&2; exit 1; }
 [[ "$db" =~ ^(journal|makeitspecific|alfred|chatdemopg)$ ]] || { echo 'refusing unknown target' >&2; exit 1; }
 docker compose exec -T postgres pg_restore --list <"$dump" >/dev/null

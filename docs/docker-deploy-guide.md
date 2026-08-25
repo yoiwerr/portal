@@ -472,7 +472,7 @@ sudo systemctl enable --now portal-backup.timer
 systemctl list-timers portal-backup.timer
 ```
 
-备份脚本需要 `PGPASSWORD` 和 `BACKUP_DIR` 等环境变量，当前容器内备份方案不需要数据库密码文件；systemd 示例默认项目位于 `/home/yoiwerr/portal`。如果服务器路径不同，安装 service 前修改 `PORTAL_DIR` 和 `ExecStart`。
+备份脚本需要 `PGPASSWORD` 和 `BACKUP_DIR` 等环境变量，当前容器内备份方案不需要数据库密码文件；systemd 示例默认项目位于 `/root/portal`。如果服务器路径不同，安装 service 前修改 `PORTAL_DIR` 和 `ExecStart`。
 
 ### Git 拉取后必须手动放入服务器的文件
 
