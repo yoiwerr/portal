@@ -11,6 +11,7 @@ services:
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in root .env}
       # PostgreSQL
       PGSQLPASSWORD: ${PGSQLPASSWORD}
       DB_HOST: postgres
