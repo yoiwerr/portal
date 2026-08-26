@@ -1,47 +1,56 @@
 const feed = document.querySelector("#entryFeed");
-const loadingState = document.querySelector("#loadingState");
 const entryCount = document.querySelector("#entryCount");
+const sidebarEntryCount = document.querySelector("#sidebarEntryCount");
 const todayLabel = document.querySelector("#todayLabel");
-const dialog = document.querySelector("#entryDialog");
+const searchInput = document.querySelector("#searchInput");
 const form = document.querySelector("#entryForm");
-const dialogTitle = document.querySelector("#dialogTitle");
 const entryId = document.querySelector("#entryId");
-const entryDate = document.querySelector("#entryDate");
 const entryTitle = document.querySelector("#entryTitle");
 const entryContent = document.querySelector("#entryContent");
 const entryError = document.querySelector("#entryError");
+const editState = document.querySelector("#editState");
+const cancelEntryButton = document.querySelector("#cancelEntryButton");
+const submitButton = form.querySelector('button[type="submit"]');
 const toast = document.querySelector("#toast");
 
 let entries = [];
 
-const today = new Date();
 todayLabel.textContent = new Intl.DateTimeFormat("zh-CN", {
   year: "numeric",
   month: "long",
   day: "numeric",
   weekday: "long",
-}).format(today);
+}).format(new Date());
 
 function localISODate(value = new Date()) {
   const offset = value.getTimezoneOffset() * 60_000;
   return new Date(value.getTime() - offset).toISOString().slice(0, 10);
 }
 
-function dateParts(value) {
-  const parsed = new Date(value + "T00:00:00");
+function dateParts(entry) {
+  const dateValue = entry.entry_date + "T00:00:00";
+  const parsedDate = new Date(dateValue);
+  const createdAt = new Date(entry.created_at);
+  const validCreatedAt = !Number.isNaN(createdAt.getTime());
+
   return {
-    day: new Intl.DateTimeFormat("zh-CN", { day: "2-digit" }).format(parsed),
-    monthYear: new Intl.DateTimeFormat("zh-CN", {
-      year: "numeric",
-      month: "short",
-    }).format(parsed),
+    day: new Intl.DateTimeFormat("zh-CN", { day: "2-digit" }).format(parsedDate),
+    month: new Intl.DateTimeFormat("zh-CN", { month: "short" }).format(parsedDate),
     full: new Intl.DateTimeFormat("zh-CN", {
       year: "numeric",
       month: "long",
       day: "numeric",
       weekday: "short",
-    }).format(parsed),
+    }).format(parsedDate),
+    time: validCreatedAt
+      ? new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(createdAt)
+      : "",
   };
+}
+
+function deriveTitle(content) {
+  const firstLine = content.split(/\r?\n/).find((line) => line.trim());
+  return (firstLine || "无标题").trim().slice(0, 120);
 }
 
 async function api(url, options = {}) {
@@ -58,7 +67,8 @@ async function api(url, options = {}) {
   }
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(data.detail || "操作失败");
+    const detail = Array.isArray(data.detail) ? "请检查输入内容" : data.detail;
+    throw new Error(detail || "操作失败");
   }
   if (response.status === 204) return null;
   return response.json();
@@ -79,25 +89,43 @@ function createAction(label, className, handler) {
   return button;
 }
 
-function renderEntries() {
-  feed.replaceChildren();
-  entryCount.textContent = entries.length ? entries.length + " 篇日志" : "";
+function visibleEntries() {
+  const query = searchInput.value.trim().toLocaleLowerCase("zh-CN");
+  if (!query) return entries;
+  return entries.filter((entry) =>
+    (entry.title + "\n" + entry.content).toLocaleLowerCase("zh-CN").includes(query)
+  );
+}
 
-  if (!entries.length) {
+function renderEntries() {
+  const filteredEntries = visibleEntries();
+  feed.replaceChildren();
+  entryCount.textContent = searchInput.value.trim()
+    ? filteredEntries.length + " 条结果"
+    : entries.length + " 条记录";
+  sidebarEntryCount.textContent = String(entries.length);
+
+  if (!filteredEntries.length) {
     const empty = document.createElement("div");
     empty.className = "empty-state";
     const title = document.createElement("p");
-    title.textContent = "还没有日志。";
-    const button = createAction("写第一篇", "primary-button compact", () => openEditor());
-    empty.append(title, button);
+    title.textContent = searchInput.value.trim() ? "没有匹配的日志" : "还没有日志";
+    const detail = document.createElement("span");
+    detail.textContent = searchInput.value.trim()
+      ? "换一个关键词再试。"
+      : "在上方记录第一条内容。";
+    empty.append(title, detail);
     feed.append(empty);
     return;
   }
 
-  entries.forEach((entry) => {
-    const parts = dateParts(entry.entry_date);
+  filteredEntries.forEach((entry) => {
+    const parts = dateParts(entry);
     const article = document.createElement("article");
-    article.className = "entry-card";
+    article.className = "timeline-entry";
+
+    const rail = document.createElement("div");
+    rail.className = "entry-rail";
 
     const dateBlock = document.createElement("time");
     dateBlock.className = "entry-date";
@@ -108,13 +136,24 @@ function renderEntries() {
     day.className = "entry-day";
     day.textContent = parts.day;
 
-    const monthYear = document.createElement("span");
-    monthYear.className = "entry-month";
-    monthYear.textContent = parts.monthYear;
-    dateBlock.append(day, monthYear);
+    const month = document.createElement("span");
+    month.className = "entry-month";
+    month.textContent = parts.month;
+    dateBlock.append(day, month);
+
+    const marker = document.createElement("span");
+    marker.className = "timeline-marker";
+    marker.setAttribute("aria-hidden", "true");
+    rail.append(dateBlock, marker);
 
     const body = document.createElement("div");
     body.className = "entry-body";
+
+    const meta = document.createElement("div");
+    meta.className = "entry-meta";
+    const timestamp = document.createElement("span");
+    timestamp.textContent = parts.time ? parts.full + " · " + parts.time : parts.full;
+    meta.append(timestamp);
 
     const heading = document.createElement("h2");
     heading.textContent = entry.title;
@@ -126,39 +165,35 @@ function renderEntries() {
     const actions = document.createElement("div");
     actions.className = "entry-actions";
     actions.append(
-      createAction("编辑", "text-button", () => openEditor(entry)),
-      createAction("删除", "text-button danger", () => removeEntry(entry))
+      createAction("编辑", "entry-action", () => startEditing(entry)),
+      createAction("删除", "entry-action danger", () => removeEntry(entry))
     );
 
-    body.append(heading, content, actions);
-    article.append(dateBlock, body);
+    body.append(meta, heading, content, actions);
+    article.append(rail, body);
     feed.append(article);
   });
 }
 
-function openEditor(entry = null) {
+function resetComposer() {
   form.reset();
+  entryId.value = "";
   entryError.textContent = "";
-
-  if (entry) {
-    dialogTitle.textContent = "编辑日志";
-    entryId.value = String(entry.id);
-    entryDate.value = entry.entry_date;
-    entryTitle.value = entry.title;
-    entryContent.value = entry.content;
-  } else {
-    dialogTitle.textContent = "写日志";
-    entryId.value = "";
-    entryDate.value = localISODate();
-  }
-
-  dialog.showModal();
-  window.setTimeout(() => entryTitle.focus(), 0);
+  editState.hidden = true;
+  cancelEntryButton.hidden = true;
+  submitButton.textContent = "发布";
 }
 
-function closeEditor() {
-  dialog.close();
+function startEditing(entry) {
+  entryId.value = String(entry.id);
+  entryTitle.value = entry.title;
+  entryContent.value = entry.content;
   entryError.textContent = "";
+  editState.hidden = false;
+  cancelEntryButton.hidden = false;
+  submitButton.textContent = "保存";
+  form.closest(".composer").scrollIntoView({ behavior: "smooth", block: "start" });
+  window.setTimeout(() => entryContent.focus(), 250);
 }
 
 async function loadEntries() {
@@ -166,7 +201,7 @@ async function loadEntries() {
     entries = await api("/journal/api/entries");
     renderEntries();
   } catch (error) {
-    if (loadingState) loadingState.textContent = error.message;
+    feed.textContent = error.message;
   }
 }
 
@@ -175,10 +210,19 @@ async function removeEntry(entry) {
   try {
     await api("/journal/api/entries/" + entry.id, { method: "DELETE" });
     entries = entries.filter((item) => item.id !== entry.id);
+    if (entryId.value === String(entry.id)) resetComposer();
     renderEntries();
     showToast("已删除");
   } catch (error) {
     showToast(error.message);
+  }
+}
+
+async function logout() {
+  try {
+    await api("/journal/api/logout", { method: "POST" });
+  } finally {
+    window.location.replace("/journal/login");
   }
 }
 
@@ -187,13 +231,14 @@ form.addEventListener("submit", async (event) => {
   entryError.textContent = "";
 
   const id = entryId.value;
+  const currentEntry = entries.find((entry) => String(entry.id) === id);
+  const content = entryContent.value.trim();
   const payload = {
-    title: entryTitle.value,
-    entry_date: entryDate.value,
-    content: entryContent.value,
+    title: entryTitle.value.trim() || deriveTitle(content),
+    entry_date: currentEntry ? currentEntry.entry_date : localISODate(),
+    content,
   };
 
-  const submitButton = form.querySelector('button[type="submit"]');
   submitButton.disabled = true;
   submitButton.textContent = "保存中...";
 
@@ -206,38 +251,35 @@ form.addEventListener("submit", async (event) => {
       }
     );
 
-    const existingIndex = entries.findIndex((item) => item.id === saved.id);
+    const existingIndex = entries.findIndex((entry) => entry.id === saved.id);
     if (existingIndex >= 0) entries[existingIndex] = saved;
-    else entries.push(saved);
+    else entries.unshift(saved);
 
     entries.sort((a, b) => {
       const byDate = b.entry_date.localeCompare(a.entry_date);
       return byDate || b.id - a.id;
     });
+    resetComposer();
     renderEntries();
-    closeEditor();
-    showToast("已保存");
+    showToast(id ? "已保存" : "已发布");
   } catch (error) {
-    entryError.textContent = Array.isArray(error.message) ? "请检查输入内容" : error.message;
+    entryError.textContent = error.message;
+    submitButton.textContent = id ? "保存" : "发布";
   } finally {
     submitButton.disabled = false;
-    submitButton.textContent = "保存";
   }
 });
 
-document.querySelector("#newEntryButton").addEventListener("click", () => openEditor());
-document.querySelector("#closeDialogButton").addEventListener("click", closeEditor);
-document.querySelector("#cancelEntryButton").addEventListener("click", closeEditor);
-document.querySelector("#logoutButton").addEventListener("click", async () => {
-  try {
-    await api("/journal/api/logout", { method: "POST" });
-  } finally {
-    window.location.replace("/journal/login");
+entryContent.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    event.preventDefault();
+    form.requestSubmit();
   }
 });
 
-dialog.addEventListener("click", (event) => {
-  if (event.target === dialog) closeEditor();
-});
+searchInput.addEventListener("input", renderEntries);
+cancelEntryButton.addEventListener("click", resetComposer);
+document.querySelector("#logoutButton").addEventListener("click", logout);
+document.querySelector("#mobileLogoutButton").addEventListener("click", logout);
 
 loadEntries();

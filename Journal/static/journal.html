@@ -4,58 +4,82 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light">
-  <title>私人日志</title>
-  <link rel="stylesheet" href="/journal/assets/journal.css">
+  <title>Journal</title>
+  <link rel="stylesheet" href="/journal/assets/journal.css?v=20260827">
 </head>
-<body>
-  <header class="journal-header">
-    <a class="journal-brand" href="/journal/">yoiwerr <span>日志</span></a>
-    <div class="header-actions">
-      <button class="text-button" id="logoutButton" type="button">退出</button>
-      <button class="primary-button compact" id="newEntryButton" type="button">写日志</button>
-    </div>
-  </header>
+<body class="app-body">
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="/journal/" aria-label="Journal 时间线">
+        <span class="brand-mark" aria-hidden="true">J</span>
+        <span>Journal</span>
+      </a>
 
-  <main class="journal-main">
-    <section class="journal-heading" aria-labelledby="page-title">
-      <p id="todayLabel" class="today-label"></p>
-      <h1 id="page-title">日常记录</h1>
-      <p class="entry-count" id="entryCount" aria-live="polite"></p>
-    </section>
+      <nav class="sidebar-nav" aria-label="日志导航">
+        <a class="nav-item active" href="#timeline">
+          <span>时间线</span>
+          <span class="nav-count" id="sidebarEntryCount"></span>
+        </a>
+      </nav>
 
-    <section class="feed" id="entryFeed" aria-label="日志列表">
-      <p class="loading-state" id="loadingState">正在读取...</p>
-    </section>
-  </main>
-
-  <dialog class="entry-dialog" id="entryDialog">
-    <form class="entry-form" id="entryForm">
-      <div class="dialog-header">
-        <h2 id="dialogTitle">写日志</h2>
-        <button class="text-button" id="closeDialogButton" type="button">关闭</button>
+      <div class="sidebar-footer">
+        <a class="sidebar-link" href="/">返回 Portal</a>
+        <button class="sidebar-link" id="logoutButton" type="button">退出登录</button>
       </div>
+    </aside>
 
-      <input id="entryId" type="hidden">
+    <main class="timeline-main" id="timeline">
+      <header class="mobile-header">
+        <a class="brand" href="/journal/">
+          <span class="brand-mark" aria-hidden="true">J</span>
+          <span>Journal</span>
+        </a>
+        <button class="plain-button" id="mobileLogoutButton" type="button">退出</button>
+      </header>
 
-      <label for="entryDate">日期</label>
-      <input id="entryDate" name="entry_date" type="date" required>
+      <section class="timeline-heading" aria-labelledby="page-title">
+        <div>
+          <p class="today-label" id="todayLabel"></p>
+          <h1 id="page-title">时间线</h1>
+        </div>
+        <div class="timeline-tools">
+          <label class="visually-hidden" for="searchInput">搜索日志</label>
+          <input id="searchInput" type="search" placeholder="搜索日志" autocomplete="off">
+          <p class="entry-count" id="entryCount" aria-live="polite"></p>
+        </div>
+      </section>
 
-      <label for="entryTitle">标题</label>
-      <input id="entryTitle" name="title" type="text" maxlength="120" required>
+      <section class="composer" aria-labelledby="composerTitle">
+        <form id="entryForm">
+          <input id="entryId" type="hidden">
+          <div class="composer-mark" aria-hidden="true">J</div>
+          <div class="composer-fields">
+            <h2 class="visually-hidden" id="composerTitle">写日志</h2>
+            <label class="visually-hidden" for="entryTitle">标题</label>
+            <input id="entryTitle" name="title" type="text" maxlength="120" placeholder="标题（可选）">
 
-      <label for="entryContent">内容</label>
-      <textarea id="entryContent" name="content" rows="12" maxlength="100000" required></textarea>
+            <label class="visually-hidden" for="entryContent">内容</label>
+            <textarea id="entryContent" name="content" rows="5" maxlength="100000" placeholder="记录此刻..." required></textarea>
 
-      <p class="form-error" id="entryError" role="alert" aria-live="polite"></p>
+            <p class="form-error" id="entryError" role="alert" aria-live="polite"></p>
+            <div class="composer-footer">
+              <p class="edit-state" id="editState" hidden>正在编辑日志</p>
+              <div class="composer-actions">
+                <button class="plain-button" id="cancelEntryButton" type="button" hidden>取消</button>
+                <button class="primary-button" type="submit">发布</button>
+              </div>
+            </div>
+          </div>
+        </form>
+      </section>
 
-      <div class="form-actions">
-        <button class="text-button" id="cancelEntryButton" type="button">取消</button>
-        <button class="primary-button" type="submit">保存</button>
-      </div>
-    </form>
-  </dialog>
+      <section class="feed" id="entryFeed" aria-label="日志时间线" aria-live="polite">
+        <p class="loading-state" id="loadingState">正在读取...</p>
+      </section>
+    </main>
+  </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="/journal/assets/journal.js" defer></script>
+  <script src="/journal/assets/journal.js?v=20260827" defer></script>
 </body>
 </html>
