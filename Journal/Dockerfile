@@ -1,7 +1,9 @@
 FROM python:3.12-slim
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
-RUN pip install --no-cache-dir uv && uv sync --frozen --no-dev
+ARG PYTHON_PACKAGE_INDEX=https://mirrors.aliyun.com/pypi/simple/
+RUN pip install --no-cache-dir --index-url "$PYTHON_PACKAGE_INDEX" uv==0.11.26 \
+    && UV_DEFAULT_INDEX="$PYTHON_PACKAGE_INDEX" uv sync --frozen --no-dev
 COPY app.py create_user.py alembic.ini ./
 COPY migrations ./migrations
 COPY static ./static
