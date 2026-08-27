@@ -29,12 +29,12 @@ SQL
 ok 'journal_user and journal database are ready'
 
 docker compose build journal
-docker compose run --rm journal uv run alembic upgrade head
+docker compose run --rm journal uv run --no-dev alembic upgrade head
 ok 'Journal Alembic migration completed'
 
 if ! $SKIP_USER; then
   printf '\nCreate or update the Journal login user. Password input is hidden.\n'
-  docker compose run --rm -e JOURNAL_ADMIN_USERNAME=yoiwerr journal uv run python create_user.py
+  docker compose run --rm -e JOURNAL_ADMIN_USERNAME=yoiwerr journal uv run --no-dev python create_user.py
 fi
 
 docker compose up -d --no-deps journal
@@ -59,5 +59,8 @@ fi
 
 docker compose run --rm --no-deps nginx nginx -t
 docker compose up -d --no-deps --force-recreate nginx
-curl --fail --silent --show-error --insecure --resolve yoiwerr.site:443:127.0.0.1 https://yoiwerr.site/journal/health >/dev/null
+curl --retry 5 --retry-delay 2 --retry-all-errors \
+  --fail --silent --show-error --insecure \
+  --resolve yoiwerr.site:443:127.0.0.1 \
+  https://yoiwerr.site/journal/health >/dev/null
 ok 'Journal is available at https://yoiwerr.site/journal/'

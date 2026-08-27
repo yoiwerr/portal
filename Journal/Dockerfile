@@ -10,4 +10,4 @@ COPY static ./static
 RUN useradd --create-home --uid 10001 journal && chown -R journal:journal /app
 USER journal
 EXPOSE 8000
-CMD ["sh","-c","uv run alembic upgrade head && uv run uvicorn app:app --host 0.0.0.0 --port 8000"]
+CMD ["sh","-c","uv run --no-dev alembic upgrade head && uv run --no-dev uvicorn app:app --host 0.0.0.0 --port 8000"]
