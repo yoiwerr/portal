@@ -3,6 +3,7 @@ set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 fail(){ printf '[ERROR] %s\n' "$*" >&2; exit 1; }
 ok(){ printf '[OK] %s\n' "$*"; }
+warn(){ printf '[WARN] %s\n' "$*" >&2; }
 SKIP_USER=false
 [[ ${1:-} == '--skip-user' ]] && SKIP_USER=true
 ./scripts/check-production-config.sh
