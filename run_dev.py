@@ -54,7 +54,7 @@ STARTUP_DONE = threading.Event()
 # Process management
 # ============================================================
 
-def stop(sig=None, frame=None):
+def stop(sig=None, frame=None, *, exit_code=0):
     print("\n[STOP] Shutting down...")
     for name, p in PROCS:
         if p.poll() is None:
@@ -69,7 +69,7 @@ def stop(sig=None, frame=None):
                 p.kill()
                 p.wait()
     print("[STOP] All services stopped.")
-    sys.exit(0)
+    sys.exit(exit_code)
 
 
 def _check_health(url: str, timeout: float = 3) -> bool:
@@ -81,24 +81,38 @@ def _check_health(url: str, timeout: float = 3) -> bool:
         return False
 
 
-def _wait_for_backend(name: str, url: str, max_wait: int = 60):
+def _wait_for_backend(name: str, url: str, process: subprocess.Popen, max_wait: int = 60):
     """Poll a backend's health endpoint until it responds."""
     elapsed = 0
     while elapsed < max_wait:
+        return_code = process.poll()
+        if return_code is not None:
+            print(f"  [ERROR] {name} exited during startup (code {return_code})")
+            return False
         if _check_health(url):
             print(f"  [OK] {name} ready ({elapsed}s)")
             return True
         time.sleep(1.5)
         elapsed += 1.5
-    print(f"  [WARN] {name} not responding after {max_wait}s — continuing anyway")
+    print(f"  [ERROR] {name} not responding after {max_wait}s")
     return False
+
+
+def _record_health(results, name, url, process):
+    results[name] = _wait_for_backend(name, url, process)
 
 
 def _port_owner(port: int) -> str | None:
     import shutil
     if not shutil.which("ss"):
         return None
-    result = subprocess.run(["ss", "-ltnp", f"sport = :{port}"], capture_output=True, text=True)
+    result = subprocess.run(
+        ["ss", "-H", "-ltnp", f"sport = :{port}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return None
     return result.stdout.strip() or None
 
 def _ensure_ports_free(ports: tuple[int, ...]) -> None:
@@ -330,13 +344,21 @@ def main():
     PROCS.append(("Journal", journal))
 
     # ── Poll health concurrently ──
+    health_results = {"ChatLab": False, "Alfred": False, "Journal": False}
     threads = [
-        threading.Thread(target=_wait_for_backend, args=("ChatLab", "http://127.0.0.1:8000/docs"), daemon=True),
-        threading.Thread(target=_wait_for_backend, args=("Alfred", "http://127.0.0.1:8001/api/health"), daemon=True),
-        threading.Thread(target=_wait_for_backend, args=("Journal", "http://127.0.0.1:8002/journal/health"), daemon=True),
+        threading.Thread(target=_record_health, args=(health_results, "ChatLab", "http://127.0.0.1:8000/docs", chatlab), daemon=True),
+        threading.Thread(target=_record_health, args=(health_results, "Alfred", "http://127.0.0.1:8001/api/health", alfred), daemon=True),
+        threading.Thread(target=_record_health, args=(health_results, "Journal", "http://127.0.0.1:8002/journal/health", journal), daemon=True),
     ]
     for t in threads:
         t.start()
+
+    for t in threads:
+        t.join()
+    failed = [name for name, ready in health_results.items() if not ready]
+    if failed:
+        print("[ERROR] 服务启动失败: " + ", ".join(failed))
+        stop(exit_code=1)
 
     # ── Dev Server :8080 ──
     class ThreadingPortalServer(socketserver.ThreadingTCPServer):
@@ -357,17 +379,10 @@ def main():
 ║                                                      ║
 ║   Direct:   ChatLab :8000  |  Alfred :8001  |  Journal :8002 ║
 ║                                                      ║
-║   Backends warming up... (see health poll above)      ║
+║   All backends ready                                 ║
 ║   Press Ctrl+C to stop all services                  ║
 ╚══════════════════════════════════════════════════════╝
 """)
-
-    for t in threads:
-        t.join(timeout=60)
-    failed = [name for name, p in PROCS if p.poll() is not None]
-    if failed:
-        stop()
-        raise SystemExit("服务启动失败: " + ", ".join(failed))
 
     webbrowser.open("http://localhost:8080")
 

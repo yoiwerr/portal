@@ -480,3 +480,19 @@ systemctl list-timers portal-backup.timer
 - `/etc/letsencrypt/live/yoiwerr.site/{fullchain.pem,privkey.pem}`：TLS 证书（如果服务器已有则无需重新放置）。
 
 不需要手动放入的文件：Journal 源码、迁移、Dockerfile、脚本和文档都会由 Git 拉取；`Journal/data/` 和 `.venv/` 是本地运行产物，不应复制到生产。
+
+### Journal 图片附件
+
+Journal 支持在创建或编辑动态时附加图片，限制为每条最多 9 张、单张最多 8 MB，格式为 JPEG、PNG、WebP 或 GIF。图片保存在 PostgreSQL 的 `journal_entry_images.data`（`BYTEA`）中，不需要在服务器额外创建上传目录或 Docker volume。
+
+更新后需重新构建 Journal，不能只重启旧镜像：
+
+```bash
+cd ~/portal
+git pull --ff-only
+./scripts/deploy-journal.sh --skip-user
+docker compose exec postgres psql -U postgres -d journal \
+  -c 'select version_num from alembic_version;'
+```
+
+迁移版本应为 `0002_entry_images`。上传测试完成后立即运行一次备份，并在临时数据库恢复演练中检查 `journal_entry_images` 行数及图片 URL。图片会增加数据库和 dump 体积，容量监控和异地备份应包含 PostgreSQL 数据与 `/var/backups/portal/postgres`。
