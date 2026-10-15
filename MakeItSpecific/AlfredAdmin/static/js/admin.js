@@ -10,34 +10,47 @@ function authHeaders() {
 }
 
 // ── Auth guard ──
-async function checkAuth() {
+function clearAuthAndRedirect() {
+  ['alfred_token', 'alfred_refresh', 'alfred_user'].forEach(key => localStorage.removeItem(key));
+  window.location.href = LOGIN_URL;
+  return null;
+}
+
+async function checkAuth(hasRefreshed = false) {
   const token = getToken();
-  if (!token) { window.location.href = LOGIN_URL; return null; }
+  const rt = localStorage.getItem('alfred_refresh');
+  if (!token && !rt) return clearAuthAndRedirect();
   try {
-    const res = await fetch(API_BASE + '/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
-    if (!res.ok) throw new Error('unauthorized');
-    const me = await res.json();
-    document.getElementById('admin-user').textContent = me.username + (me.role === 'admin' ? ' (admin)' : '');
-    if (me.role !== 'admin') { window.location.href = CHAT_URL; return null; }
-    return me;
-  } catch (_) {
-    // Try refresh
-    const rt = localStorage.getItem('alfred_refresh');
-    if (rt) {
-      try {
-        const r = await fetch(API_BASE + '/auth/refresh', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: rt }),
-        });
-        if (r.ok) {
-          const d = await r.json();
-          localStorage.setItem('alfred_token', d.access_token);
-          localStorage.setItem('alfred_refresh', d.refresh_token);
-          return checkAuth();
-        }
-      } catch (_) {}
+    if (token) {
+      const res = await fetch(API_BASE + '/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+      if (res.ok) {
+        const me = await res.json();
+        document.getElementById('admin-user').textContent = me.username + (me.role === 'admin' ? ' (admin)' : '');
+        if (me.role !== 'admin') { window.location.href = CHAT_URL; return null; }
+        return me;
+      }
+      if (res.status !== 401) throw new Error('auth_service_unavailable');
     }
-    window.location.href = LOGIN_URL;
+    // Retry once only, and only for missing/expired credentials.
+    if (rt && !hasRefreshed) {
+      const r = await fetch(API_BASE + '/auth/refresh', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: rt }),
+      });
+      if (r.status === 401) return clearAuthAndRedirect();
+      if (!r.ok) throw new Error('auth_service_unavailable');
+      const d = await r.json();
+      if (![d.access_token, d.refresh_token].every(value => typeof value === 'string' && value.trim())) {
+        throw new Error('invalid_auth_response');
+      }
+      localStorage.setItem('alfred_token', d.access_token);
+      localStorage.setItem('alfred_refresh', d.refresh_token);
+      return checkAuth(true);
+    }
+    return clearAuthAndRedirect();
+  } catch (_) {
+    // Do not erase a valid session or create a login redirect loop on outages.
+    document.getElementById('admin-user').textContent = '登录服务暂时不可用，请稍后刷新重试';
     return null;
   }
 }
@@ -183,4 +196,4 @@ async function loadUsers() {
 }
 
 // ── Init ──
-checkAuth().then(() => loadDashboard());
+checkAuth().then(user => { if (user) loadDashboard(); });

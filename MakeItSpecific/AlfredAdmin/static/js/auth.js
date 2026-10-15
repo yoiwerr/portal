@@ -27,6 +27,9 @@ function setLoading(btnId, loading) {
 }
 
 function saveAuth(data) {
+  if (![data.access_token, data.refresh_token].every(token => typeof token === 'string' && token.trim())) {
+    throw new Error('登录服务返回异常，请稍后重试');
+  }
   localStorage.setItem('alfred_token', data.access_token);
   localStorage.setItem('alfred_refresh', data.refresh_token);
   localStorage.setItem('alfred_user', JSON.stringify({
@@ -34,6 +37,14 @@ function saveAuth(data) {
     username: data.user?.username || '',
     role: data.user?.role || 'user',
   }));
+}
+
+async function responseError(response, fallback) {
+  const data = await response.json().catch(() => ({}));
+  if (response.status === 404) return '登录接口不存在，请检查服务器路由配置';
+  if (response.status === 429) return '操作太频繁，请稍后再试';
+  if (response.status >= 500) return '登录服务暂时不可用，请稍后重试';
+  return data?.error?.message || fallback;
 }
 
 // ── Login ──
@@ -59,8 +70,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
     });
 
     if (!res.ok) {
-      const err = await res.json();
-      showError('login', err.error?.message || '登录失败');
+      showError('login', await responseError(res, '登录失败'));
       setLoading('login-btn', false);
       return;
     }
@@ -81,7 +91,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
 
     window.location.href = CHAT_URL;
   } catch (err) {
-    showError('login', '网络错误，请重试');
+    showError('login', err instanceof TypeError ? '网络错误，请重试' : err.message);
   }
   setLoading('login-btn', false);
 });
@@ -119,8 +129,7 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     });
 
     if (!res.ok) {
-      const err = await res.json();
-      showError('reg', err.error?.message || '注册失败');
+      showError('reg', await responseError(res, '注册失败'));
       setLoading('reg-btn', false);
       return;
     }
@@ -133,8 +142,8 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     });
 
     if (!loginRes.ok) {
-      showError('reg', '注册成功但自动登录失败，请手动登录');
       document.querySelector('.tab[data-tab="login"]').click();
+      showError('login', '注册成功但自动登录失败，请手动登录');
       setLoading('reg-btn', false);
       return;
     }
@@ -143,7 +152,7 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
     saveAuth({ ...data, user: { username, role: 'user' } });
     window.location.href = CHAT_URL;
   } catch (err) {
-    showError('reg', '网络错误，请重试');
+    showError('reg', err instanceof TypeError ? '网络错误，请重试' : err.message);
   }
   setLoading('reg-btn', false);
 });
@@ -152,7 +161,14 @@ document.getElementById('register-form').addEventListener('submit', async (e) =>
 async function trySilentRefresh() {
   const refreshToken = localStorage.getItem('alfred_refresh');
   const accessToken = localStorage.getItem('alfred_token');
-  if (!refreshToken || accessToken) return; // only refresh if we have no access token
+  if (!refreshToken) return;
+  if (accessToken) {
+    try {
+      const payload = accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const claims = JSON.parse(atob(payload));
+      if (claims.exp > Date.now() / 1000 + 30) return;
+    } catch (_) {} // Malformed or expired tokens must not prevent refresh.
+  }
 
   try {
     const res = await fetch(API_BASE + '/auth/refresh', {
@@ -162,9 +178,15 @@ async function trySilentRefresh() {
     });
     if (res.ok) {
       const data = await res.json();
-      localStorage.setItem('alfred_token', data.access_token);
-      localStorage.setItem('alfred_refresh', data.refresh_token);
+      let user = {};
+      try { user = JSON.parse(localStorage.getItem('alfred_user') || '{}'); } catch (_) {}
+      saveAuth({ ...data, user });
       window.location.href = CHAT_URL;
+    } else if (res.status === 401) {
+      localStorage.removeItem('alfred_token');
+      localStorage.removeItem('alfred_refresh');
+      localStorage.removeItem('alfred_user');
+      showError('login', '登录已过期，请重新登录');
     }
   } catch (_) {}
 }

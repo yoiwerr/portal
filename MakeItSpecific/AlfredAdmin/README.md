@@ -26,7 +26,7 @@ nginx
   └── /alfred/auth/、/alfred/admin/ ──→ AlfredAdmin (Go :8080)
 ```
 
-认证和管理 API 分别通过 `/alfred/api/auth/` 和 `/alfred/api/admin/` 路由到 AlfredAdmin；准确的路径重写规则见 [nginx 配置](../../nginx/default.conf)。本地直接运行 Python 时默认端口为 8001。
+认证和管理 API 分别通过 `/alfred/api/v1/auth/` 和 `/alfred/api/v1/admin/` 路由到 AlfredAdmin，旧路径 `/alfred/api/auth/` 和 `/alfred/api/admin/` 仍兼容。nginx 先重写路径，再使用不带 URI 的变量 `proxy_pass`，保留 `login`、`me`、静态文件名和查询参数；准确规则见 [nginx 配置](../../nginx/default.conf)。本地直接运行 Python 时默认端口为 8001。
 
 ### 与 Alfred 的关系
 
