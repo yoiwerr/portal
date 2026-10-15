@@ -165,7 +165,10 @@ class TestReflectionJSONParsing:
 
     def test_parse_malformed(self):
         result = _parse_reflection_json("not json")
-        assert result["pass"] is True  # 出错时默认通过
+        assert result["pass"] is False  # 无效检查不能当成已通过
+
+    def test_parse_wrong_json_shape(self):
+        assert _parse_reflection_json('[]')["pass"] is False
 
 
 class TestFallbackPlan:
@@ -176,10 +179,10 @@ class TestFallbackPlan:
         assert plan["is_complete"] is False
         assert len(plan.get("clarify_questions", [])) > 0
 
-    def test_long_message_bypasses(self):
+    def test_long_message_does_not_establish_readiness_on_model_failure(self):
         long_msg = "我想用 React 和 Node.js 搭建一个个人博客，技术栈偏好 TypeScript，风格简洁现代，大概一个月左右完成，主要用来写前端技术文章分享和个人项目展示，需要支持 Markdown 编辑和评论功能" * 2
         plan = _fallback_plan(long_msg, MODULE_DIMENSIONS["work_arranger"])
-        assert plan["is_complete"] is True
+        assert plan["is_complete"] is False
 
 
 class TestClarificationFormatting:
@@ -193,8 +196,8 @@ class TestClarificationFormatting:
         output = _format_clarification_message(questions, 0.3)
         assert "你的目标是什么？" in output
         assert "什么时候完成？" in output
-        assert "30%" in output       # progress percentage
+        assert "技术细节我会给简单的推荐" in output
 
-    def test_format_includes_progress(self):
+    def test_format_does_not_expose_internal_completeness_score(self):
         output = _format_clarification_message([], 0.5)
-        assert "50%" in output
+        assert "50%" not in output

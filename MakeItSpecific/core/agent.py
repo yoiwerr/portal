@@ -116,32 +116,6 @@ class Agent:
         # ── 记忆注入 ──
         memory_context = await self._retrieve_memory(message, session_id)
 
-        # ── 加载上次契约（跨会话恢复）──
-        contract_ctx = ""
-        if self.contract_store and session_id:
-            try:
-                row = self.contract_store.get_latest(session_id)
-                if row and row.get("contract", {}).get("goal"):
-                    from services.handover_service import HandoverService
-                    last_contract = row["contract"]
-                    contract_ctx = f"\n## 📋 上次任务契约\n- 目标: {last_contract.get('goal', '')}\n"
-                    scope = last_contract.get("scope", {})
-                    if scope.get("in") or scope.get("in_"):
-                        contract_ctx += f"- 范围: {', '.join(scope.get('in', scope.get('in_', [])))}\n"
-                    if scope.get("out"):
-                        contract_ctx += f"- 不包含: {', '.join(scope['out'])}\n"
-                    decisions = last_contract.get("decisions", last_contract.get("constraints", []))
-                    if decisions:
-                        contract_ctx += f"- 约束: {'; '.join(decisions[:3])}\n"
-                    if last_contract.get("confirmed_by_user"):
-                        contract_ctx += "- 状态: 已确认\n"
-                    contract_ctx += "\n基于以上契约继续推进。如需修改契约内容，请直接说明。\n"
-                    logger.info(f"[Contract] 加载历史契约 session={session_id}")
-            except Exception as e:
-                logger.warning(f"[Contract] 加载历史契约失败 (非关键): {e}")
-        if contract_ctx:
-            extra_context = contract_ctx + "\n" + (extra_context or "")
-
         initial_state = await self._build_initial_state(
             message=message, module=module, background=background,
             session_id=session_id, extra_context=extra_context,
@@ -156,13 +130,24 @@ class Agent:
         plan = result.get("plan", {})
         intent = result.get("intent", {})
         completeness = plan.get("completeness", 0)
+        delivery_error = result.get("delivery_error", False)
+        complete = plan.get("response_mode") == "plan" and result.get("delivery_validated", False)
+        contract = plan.get("contract", {})
+        if self.contract_store and contract.get("goal") and plan.get("response_mode") in {"plan", "clarify"}:
+            self._save_planning_contract(session_id, contract, completed=complete)
 
-        if new_clarify_round > clarify_round:
+        if delivery_error:
+            action_type = "error"
+            self.sessions.save_message(session_id=session_id, role="assistant", content=output,
+                                       msg_type="error", meta={"delivery_validated": False})
+            self.sessions.update_session(session_id=session_id, status="active")
+        elif new_clarify_round > clarify_round:
             action_type = "clarify"
             self.sessions.save_message(
                 session_id=session_id, role="assistant", content=output,
                 msg_type="clarify",
-                meta={"progress": completeness, "dimensions": new_dimensions, "intent": intent},
+                meta={"progress": completeness, "dimensions": new_dimensions, "intent": intent,
+                      "response_mode": plan.get("response_mode"), "delivery_validated": complete},
             )
             self.sessions.update_session(
                 session_id=session_id, clarify_rounds=new_clarify_round,
@@ -173,13 +158,15 @@ class Agent:
             self.sessions.save_message(
                 session_id=session_id, role="assistant", content=output,
                 msg_type="result",
-                meta={"progress": completeness, "dimensions": new_dimensions, "intent": intent},
+                meta={"progress": completeness, "dimensions": new_dimensions, "intent": intent,
+                      "response_mode": plan.get("response_mode"), "delivery_validated": complete},
             )
             self.sessions.update_session(
-                session_id=session_id, completeness=completeness, status="completed",
+                session_id=session_id, completeness=completeness, status="completed" if complete else "active",
             )
             # ── 会话结束时自动摘要 ──
-            await self._summarize_on_complete(session_id, output, intent)
+            if complete:
+                await self._summarize_on_complete(session_id, output, intent)
 
         # ── 三层上下文更新：每轮对话后更新 L2 摘要 + 提取 L3 事实 ──
         try:
@@ -196,7 +183,7 @@ class Agent:
             "type": action_type, "session_id": session_id, "message": output,
             "state_update": {
                 "clarify_round": new_clarify_round, "dimensions": new_dimensions,
-                "is_complete": action_type == "execute",
+                "is_complete": complete,
             },
         }
 
@@ -254,17 +241,18 @@ class Agent:
         multi_perspectives = {}
         multi_synthesis = ""
         plan = {}
+        delivery_error = False
+        delivery_validated = False
 
         # 节点 → 前端展示的进度文案
         _NODE_PROGRESS = {
-            "router": "正在理解您的意图…",
+            "router": "正在准备新项目规划…",
             "enrich": None,       # 纯数据加工，不展示
             "rag": "正在检索知识库…",
-            "planner": "正在分析需求维度…",
+            "gap_analysis": "正在并行检查还缺哪些关键信息…",
+            "planner": "正在梳理想法与默认方案…",
             "clarify": "正在整理追问…",
-            "engineering_check": "正在检查工程规范…",
-            "multi_agent": "多 Agent 并行分析中…",
-            "execute": "正在执行任务…",
+            "execute": "正在整理方案文案…",
             "checkpoint": "正在校验结果…",
             "reflect": "正在质检…",
         }
@@ -287,6 +275,10 @@ class Agent:
                         intent = node_state.get("intent", intent)
                     if "plan" in (node_state or {}):
                         plan = node_state.get("plan", plan)
+                    if "delivery_error" in (node_state or {}):
+                        delivery_error = node_state["delivery_error"]
+                    if "delivery_validated" in (node_state or {}):
+                        delivery_validated = node_state["delivery_validated"]
                     if "expressed_dimensions" in (node_state or {}):
                         new_dims = node_state.get("expressed_dimensions", new_dims)
                     if "clarify_round" in (node_state or {}):
@@ -307,10 +299,13 @@ class Agent:
 
         # ── 推送任务契约事件 ──
         contract = plan.get("contract", {})
-        if contract and contract.get("goal"):
+        if contract and contract.get("goal") and plan.get("response_mode") in {"plan", "clarify"}:
             if self.contract_store:
                 try:
-                    self.contract_store.create(session_id, contract)
+                    self._save_planning_contract(
+                        session_id, contract,
+                        completed=plan.get("response_mode") == "plan" and delivery_validated,
+                    )
                 except Exception as e:
                     logger.warning(f"[Contract] 保存失败 (非关键): {e}")
             yield {"event": "contract", "data": {
@@ -341,7 +336,13 @@ class Agent:
             }}
 
         if output:
-            if new_clarify_round > clarify_round:
+            complete = plan.get("response_mode") == "plan" and delivery_validated
+            if delivery_error:
+                self.sessions.save_message(session_id=session_id, role="assistant", content=output,
+                                           msg_type="error", meta={"delivery_validated": False})
+                self.sessions.update_session(session_id=session_id, status="active")
+                yield {"event": "error", "data": {"detail": output}}
+            elif new_clarify_round > clarify_round:
                 self.sessions.save_message(
                     session_id=session_id, role="assistant", content=output,
                     msg_type="clarify", meta={"progress": completeness, "intent": intent},
@@ -357,29 +358,19 @@ class Agent:
             else:
                 self.sessions.save_message(
                     session_id=session_id, role="assistant", content=output,
-                    msg_type="result", meta={"progress": completeness, "intent": intent},
+                    msg_type="result", meta={"progress": completeness, "intent": intent,
+                                             "response_mode": plan.get("response_mode"), "delivery_validated": complete},
                 )
                 self.sessions.update_session(
-                    session_id=session_id, completeness=completeness, status="completed",
+                    session_id=session_id, completeness=completeness, status="completed" if complete else "active",
                 )
-                # ── 标记契约为 executing 状态 ──
-                if self.contract_store and contract:
-                    try:
-                        cid = contract.get("contract_id")
-                        if not cid:
-                            cid = self.contract_store.get_latest(session_id)
-                            cid = cid.get("contract_id") if cid else None
-                        if cid:
-                            contract["status"] = "executing"
-                            self.contract_store.update(cid, contract, increment_version=False)
-                    except Exception as e:
-                        logger.warning(f"[Contract] 状态更新失败 (非关键): {e}")
                 yield {"event": "execute", "data": {
                     "type": "execute", "skill": module, "module": module,
                     "message": output, "tool_calls_made": len(tool_results),
                 }}
                 # ── 会话结束时自动摘要 ──
-                await self._summarize_on_complete(session_id, output, intent)
+                if complete:
+                    await self._summarize_on_complete(session_id, output, intent)
 
         # ── 三层上下文更新 ──
         try:
@@ -479,6 +470,17 @@ class Agent:
     # 工具方法
     # ============================================================
 
+    def _save_planning_contract(self, session_id, contract, *, completed=False):
+        """Append a same-session version instead of unrelated version-1 drafts."""
+        contract["status"] = "completed" if completed else "draft"
+        contract["session_id"] = session_id
+        previous = self.contract_store.get_latest(session_id)
+        if previous:
+            contract["contract_id"] = previous["contract_id"]
+            self.contract_store.update(previous["contract_id"], contract, increment_version=True)
+        else:
+            self.contract_store.create(session_id, contract)
+
     async def _build_initial_state(self, message, module, background, session_id,
                              extra_context, dimensions, clarify_round, memory_context="", user_id="") -> dict:
         # ── Context Engine: 构建对话上下文 ──
@@ -486,7 +488,7 @@ class Agent:
             session_store=self.sessions,
             session_id=session_id,
             current_message=message,
-            intent=None,  # intent 此时尚未识别，Router 会在 graph 中处理
+            intent=None,  # 固定规划入口尚未进入，具体回复模式由 Planner 判断
             expressed_dimensions=dimensions,
         )
 
@@ -494,6 +496,14 @@ class Agent:
         full_extra = extra_context or ""
         if memory_context:
             full_extra = memory_context + "\n\n" + full_extra
+
+        previous_contract = {}
+        if self.contract_store:
+            try:
+                row = self.contract_store.get_latest(session_id)
+                previous_contract = row.get("contract", {}) if row else {}
+            except Exception as exc:
+                logger.warning("[Contract] 当前会话资料读取失败: %s", exc)
 
         return {
             "messages": [{"role": "user", "content": message}],
@@ -503,6 +513,10 @@ class Agent:
             "expressed_dimensions": dimensions,
             "clarify_round": clarify_round,
             "rag_context": "",
+            "multi_agent_perspectives": {},
+            "multi_agent_synthesis": "",
+            "research_skipped": False,
+            "research_completed": False,
             "enriched_query": ctx.enriched_query,
             "plan": {},
             "tool_results": [],
@@ -524,6 +538,9 @@ class Agent:
             # ── 用户上下文（用量记录用）──
             "user_id": user_id,
             "session_id": session_id,
+            "previous_contract": previous_contract,
+            "delivery_error": False,
+            "delivery_validated": False,
         }
 
     def list_sessions(self, module=None):

@@ -33,21 +33,17 @@ class Scope(BaseModel):
 
 
 class Permissions(BaseModel):
-    """Agent 执行权限 — 允许读什么、写什么、执行什么。
-
-    默认策略: 读全项目，写需确认，执行需确认。
-    初期版本简化，写权限默认是 'ask'。
-    """
+    """Legacy permission fields; Alfred itself has no user-project permissions."""
     read: str | list[str] = Field(
-        default="project",
+        default="none",
         description='"project" | "all" | ["src/**", ...]'
     )
     write: str | list[str] = Field(
-        default="ask",
+        default="none",
         description='"ask" | "none" | ["src/components/*", ...]'
     )
     execute: str | list[str] = Field(
-        default="ask",
+        default="none",
         description='"ask" | "none" | ["npm test", ...]'
     )
     api: list[str] = Field(default_factory=list, description="允许调用的外部 API 列表")
@@ -59,10 +55,9 @@ class Permissions(BaseModel):
 # ============================================================
 
 class TaskContract(BaseModel):
-    """任务契约 — AI Agent 执行前的轻量工作约定。
+    """Internal planning facts with provenance, not the final plan document.
 
-    不是完整需求文档，而是经过用户确认的可执行任务说明书。
-    典型长度: 200-400 字，够准确但不冗长。
+    Existing JSONB storage can hold the new fields without a schema migration.
     """
 
     # ── 标识 ──
@@ -78,6 +73,12 @@ class TaskContract(BaseModel):
         default="",
         description="最终目标 — 一句话，用户真正要完成什么（不超过 50 字）"
     )
+    project_type: str = Field(default="new", description="new | existing; existing is outside first-version scope")
+    target_users: str = Field(default="", description="使用者；默认假设需明确标记")
+    main_flow: list[str] = Field(default_factory=list, description="核心操作流程")
+    confirmed_requirements: list[str] = Field(default_factory=list, description="用户明确要求")
+    assumptions: list[str] = Field(default_factory=list, description="默认假设，不代表用户确认")
+    pending_questions: list[str] = Field(default_factory=list, description="非阻塞待定事项")
     scope: Scope = Field(default_factory=Scope, description="工作范围")
     constraints: list[str] = Field(
         default_factory=list,
@@ -96,14 +97,14 @@ class TaskContract(BaseModel):
         description="Agent 执行权限"
     )
     deliverables: dict = Field(
-        default_factory=lambda: {"format": "代码改动", "artifacts": []},
+        default_factory=lambda: {"format": "Markdown 方案文案", "artifacts": ["一份完整项目实施方案"]},
         description="期望交付物 — 格式 + 产物列表"
     )
 
     # ── 元信息 ──
     confidence: float = Field(
         default=0.0, ge=0.0, le=1.0,
-        description="Planner 对契约完整度的评分 (0-1)。< 0.75 触发 Clarify"
+        description="核心信息覆盖评分 (0-1)，实际路由依据核心信息和阻塞问题"
     )
     status: str = Field(
         default="draft",
@@ -170,6 +171,12 @@ class TaskContract(BaseModel):
             session_id=session_id,
             version=contract_data.get("version", 1),
             goal=contract_data.get("goal", data.get("goal", "")),
+            project_type=contract_data.get("project_type", "new"),
+            target_users=contract_data.get("target_users", ""),
+            main_flow=contract_data.get("main_flow", []),
+            confirmed_requirements=contract_data.get("confirmed_requirements", []),
+            assumptions=contract_data.get("assumptions", []),
+            pending_questions=contract_data.get("pending_questions", []),
             scope=Scope(
                 in_=scope_data.get("in", scope_data.get("in_", [])),
                 out=scope_data.get("out", []),
@@ -178,7 +185,7 @@ class TaskContract(BaseModel):
             acceptance=contract_data.get("acceptance", []),
             risks=contract_data.get("risks", []),
             permissions=Permissions(**perms_data) if perms_data else Permissions(),
-            deliverables=contract_data.get("deliverables", {"format": "代码改动", "artifacts": []}),
+            deliverables=contract_data.get("deliverables", {"format": "Markdown 方案文案", "artifacts": ["一份完整项目实施方案"]}),
             confidence=contract_data.get("confidence", data.get("completeness", 0.0)),
             missing_fields=data.get("missing_fields", data.get("missing_info", [])),
             confirmed_by_user=contract_data.get("confirmed_by_user", False),
@@ -228,5 +235,5 @@ def _migrate_legacy_plan(plan: dict) -> dict:
         "acceptance": [],
         "risks": [],
         "permissions": {},
-        "deliverables": {"format": "代码改动", "artifacts": []},
+        "deliverables": {"format": "Markdown 方案文案", "artifacts": ["一份完整项目实施方案"]},
     }

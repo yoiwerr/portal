@@ -6,7 +6,7 @@
 
 ## 定位
 
-AlfredAdmin 是 [Alfred](../)（AI 工作流增强 Agent）的**管理后台**，负责：
+AlfredAdmin 是 [Alfred](../README.md)（面向新手的 Vibe Coding 方案助手）的**管理后台**，负责：
 
 - **用户认证** — 注册、登录、JWT、refresh token 轮转
 - **模型配置管理** — LLM provider 的增删改查，API Key 只存环境变量名
@@ -15,14 +15,18 @@ AlfredAdmin 是 [Alfred](../)（AI 工作流增强 Agent）的**管理后台**�
 
 AlfredAdmin **不代理** Alfred 的对话流量。对话请求由 nginx 直接反代到 Alfred Python 服务。
 
+产品范围以 [产品定义](../PRODUCT.md) 为准。账号、模型配置和统计属于 Alfred 自身的运行基础设施，不是向用户交付的项目实现能力。本次只同步文档，现有代码行为没有改变。
+
 ```
 Browser
   │
   ▼
 nginx
-  ├── /alfred/*   ──→  Alfred (Python :8001)    ← 对话主链路
-  └── /admin/*    ──→  AlfredAdmin (Go :8080)    ← 管理后台
+  ├── /alfred/                     ──→ Alfred (容器内 Python :8000)
+  └── /alfred/auth/、/alfred/admin/ ──→ AlfredAdmin (Go :8080)
 ```
+
+认证和管理 API 分别通过 `/alfred/api/auth/` 和 `/alfred/api/admin/` 路由到 AlfredAdmin；准确的路径重写规则见 [nginx 配置](../../nginx/default.conf)。本地直接运行 Python 时默认端口为 8001。
 
 ### 与 Alfred 的关系
 
@@ -48,16 +52,15 @@ AlfredAdmin 和 Alfred **共享同一个 PostgreSQL 数据库**（`alfred`），
 ### 本地开发
 
 ```bash
-cd AlfredAdmin
+cd /home/yoiwerr/portal/MakeItSpecific/AlfredAdmin
 
 # 安装依赖
-go mod tidy
+go mod download
 
-# 配置环境变量
-export DATABASE_URL="postgres://postgres:postgres@localhost:5432/alfred?sslmode=disable"
-export JWT_SECRET="dev-secret-key-at-least-32-characters-long!!"
-export ADMIN_INIT_PASSWORD="admin123"
-export DEEPSEEK_API_KEY="sk-your-key"
+# 先安全配置并导出这些变量；JWT_SECRET 必须与 Python 服务一致
+: "${DATABASE_URL:?请配置可访问的 alfred 数据库连接串}"
+: "${JWT_SECRET:?请配置至少 32 字符的签名密钥}"
+: "${ADMIN_INIT_PASSWORD:?请配置初始化管理员密码}"
 
 # 运行
 go run ./cmd/gateway
@@ -70,11 +73,16 @@ go run ./cmd/gateway
 
 ### Docker Compose
 
+在 Portal 根目录操作，先完成已有 `.env`、数据库和共享密钥配置；子目录 Compose 依赖根级 PostgreSQL，不是独立部署包：
+
 ```bash
-docker compose up -d
+cd /home/yoiwerr/portal
+docker compose up -d --build alfred-admin
 ```
 
-首次启动自动创建 admin 用户（密码由 `ADMIN_INIT_PASSWORD` 指定，默认 `admin123`）和默认 DeepSeek 模型配置。
+首次启动自动创建 admin 用户（密码由 `ADMIN_INIT_PASSWORD` 指定）和默认 DeepSeek 模型配置。更改初始化密码不等于修改已存在账号的密码。
+
+根级 Compose 要求显式提供 `JWT_SECRET` 和 `ADMIN_INIT_PASSWORD`。直接 `go run` 的现有代码仍有弱默认值，必须显式配置，不能将直接运行方式视为与 Compose 相同的生产校验。
 
 ---
 
@@ -83,11 +91,11 @@ docker compose up -d
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
 | `ADMIN_PORT` | `8080` | 监听端口 |
-| `JWT_SECRET` | (必填) | JWT 签名密钥（至少 32 字符） |
+| `JWT_SECRET` | Compose 必填；直跑有旧默认 | 显式设置至少 32 字符，与 Python 共用 |
 | `JWT_ACCESS_EXPIRY` | `15m` | Access token 有效期 |
 | `JWT_REFRESH_EXPIRY` | `168h` | Refresh token 有效期（7 天） |
-| `ADMIN_INIT_PASSWORD` | `admin123` | 初始化 admin 密码（仅首次启动） |
-| `DATABASE_URL` | (必填) | PostgreSQL 连接串 |
+| `ADMIN_INIT_PASSWORD` | Compose 必填；直跑旧默认 `admin123` | 必须显式设置，初始化 admin 密码（仅首次启动） |
+| `DATABASE_URL` | 直跑有旧默认；Compose 注入 | 显式设置正确的 PostgreSQL 连接串，不使用旧弱凭证 |
 | `DEEPSEEK_API_KEY` | (可选) | DeepSeek API Key |
 | `OPENAI_API_KEY` | (可选) | OpenAI API Key |
 | `DASHSCOPE_API_KEY` | (可选) | DashScope API Key |
@@ -216,7 +224,7 @@ AlfredAdmin/
 | 数据库 | PostgreSQL（pgx/v5，与 Alfred 共用 `alfred` 库） |
 | 认证 | bcrypt + JWT (golang-jwt/v5)，refresh token 存 DB |
 | 前端 | 原生 HTML/CSS/JS（登录页 + 管理面板） |
-| 部署 | Docker 多阶段构建（golang:1.22-alpine → alpine:3.20） |
+| 部署 | Docker 多阶段构建（golang:1.22-alpine → scratch） |
 
 ---
 

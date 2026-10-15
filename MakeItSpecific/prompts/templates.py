@@ -54,6 +54,14 @@ PROMPT_REFINER_DIMENSIONS = {
 }
 
 WORK_ARRANGER_DIMENSIONS = {
+    "goal": {"label": "项目目标", "weight": 0.25, "required": True, "hint": "想解决什么实际问题？"},
+    "scope.in": {"label": "第一版功能", "weight": 0.25, "required": True, "hint": "第一版最不能少的事情有哪些？"},
+    "main_flow": {"label": "操作流程", "weight": 0.25, "required": True, "hint": "从打开到完成，希望怎样用它？"},
+    "acceptance": {"label": "完成结果", "weight": 0.25, "required": True, "hint": "出现什么结果就觉得能用了？可由 Alfred 推荐。"},
+}
+
+# Kept for historical callers; no longer injected into public project planning.
+LEGACY_WORK_ARRANGER_DIMENSIONS = {
     "project_purpose": {
         "label": "项目目的",
         "weight": 0.25,
@@ -344,7 +352,17 @@ def format_contract_for_executor(contract: dict) -> str:
     perms = contract.get("permissions", {})
     deliverables = contract.get("deliverables", {})
 
-    lines = ["## 📋 当前任务契约（执行的唯一边界）", ""]
+    lines = ["## 当前方案资料（要求与假设需分别标注）", ""]
+
+    for key, label in (
+        ("target_users", "使用者"), ("main_flow", "操作流程"),
+        ("confirmed_requirements", "用户明确要求"), ("assumptions", "默认假设，未经用户逐项确认"),
+        ("pending_questions", "非阻塞待定事项"),
+    ):
+        value = contract.get(key)
+        if value:
+            lines.append(f"**{label}**: {'; '.join(value) if isinstance(value, list) else value}")
+    lines.append("")
 
     # goal
     goal = contract.get("goal", "")

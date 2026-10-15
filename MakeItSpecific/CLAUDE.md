@@ -1,9 +1,20 @@
-# Alfred — AI 工作流增强 Agent
+# Alfred — 开发说明
 
-> 个人 AI 助手。通过引导式对话 + 工具调用，把模糊想法变成可执行方案。
-> 从 [Portal](https://github.com/yoiwerr/portal) 的 MakeItSpecific 子项目独立出来的完整项目。
+Alfred 当前位于 Portal 的 `MakeItSpecific/`，定位为面向新手的 Vibe Coding 方案助手。
 
-## 架构概览
+## 当前开发依据
+
+- 产品范围与交付标准以 [PRODUCT.md](PRODUCT.md) 为准，开发安装见 [README.md](README.md)。
+- 后续按 [板块划分](docs/product-modules.md) 的九块（00–08）一次改一块，[逐步优化路线](docs/product-roadmap.md) 用于对照产品目标。先限定函数与接口，只做必要联动，不一次性改写整个工程。
+- 首版只支持新项目，最终提供一份可交给编程 Agent 的方案文案；Alfred 产品本身不写代码、不执行用户项目、不接手实际排错。
+- 技术选择使用普通语言、场景和优缺点说明；信息不全时采用标注清楚的简单默认方案，不覆盖用户明确要求。
+- 跨会话项目记忆与后续修改方案的交互待调研，不依据旧实现直接认定需求已确认。
+- 当前仍存在旧的通用工作流、工具、技能和记忆实现，需逐步审查；下方架构与历史记录不是新能力承诺。
+- 第一轮已对齐规划提示词、核心信息与默认来源处理、只返回文案的方案节点及交付检查；API/SSE 的旧节点名称保留兼容。界面、方案直接导出和真实模型效果验证尚待后续。产品输出边界不限制开发者正常维护本仓库的代码与命令。
+
+## 历史实现参考：架构概览
+
+下图保留旧架构说明，不用于指导新增节点。00 首轮已移除图内空工程检查及不可达多 Agent 分支。当前公开对话统一走 `work_arranger`；Planner 直接进入追问或文案生成，之后方向与质量检查可有限重试，生成节点不绑定工具。当前流程图见 [板块 00](docs/product-modules.md#00对话流程与节点编排)，实际链路以 `core/graph.py` 为准；离线回归见 `tests/test_planning*.py`。
 
 ```
 Browser (SSE Token Streaming)
@@ -48,68 +59,18 @@ core/graph.py  (LangGraph V4 Agentic Loop)
 
 ## 本地开发
 
-```bash
-cd Alfred
-
-# 1. 安装依赖
-pip install -r requirements.txt
-# 或: uv sync
-
-# 2. 配置环境变量
-cp .env.example .env
-vim .env   # 填入 LLM API Key + PostgreSQL 密码
-
-# 3. 启动 PostgreSQL（需要 pgvector 扩展）
-docker run -d --name alfred-pg \
-  -e POSTGRES_PASSWORD=yourpassword \
-  -e POSTGRES_DB=alfred \
-  -p 5432:5432 \
-  pgvector/pgvector:pg16
-
-# 4. 启动 Alfred
-python app.py
-# → 首页: http://localhost:8001
-# → API 文档: http://localhost:8001/docs
-```
-
-### 环境变量
-
-```bash
-# 必填（至少一个 LLM Provider）
-LLM_PROVIDER=auto          # dashscope | deepseek | openai | local | auto
-DASHSCOPE_API_KEY=sk-xxx   # 百炼 API Key（Embedding + Rerank 必须）
-DEEPSEEK_API_KEY=sk-xxx    # 或 OPENAI_API_KEY
-
-# 必填
-PGSQLPASSWORD=your-pg-password
-
-# 可选
-LLM_MODEL=qwen-plus
-MAX_TOOL_ROUNDS=10
-MEMORY_ENABLED=true
-SANDBOX_ENABLED=false      # Python 沙箱（安全风险，默认关闭）
-```
+按 [README 的本地开发说明](README.md#当前工程与本地开发) 使用 `uv sync --frozen`，核对当前环境变量和数据库连接后运行。保留已有 `.env`，Python 与 AlfredAdmin 使用同一 `JWT_SECRET`。当前 Python 配置优先读取 Portal 根级 `.env`。
 
 ## 运行测试
 
 ```bash
-cd Alfred
-python -m pytest tests/ -v
+cd /home/yoiwerr/portal/MakeItSpecific
+uv run --frozen python -m pytest tests/ -v
 ```
 
 ## Docker 部署
 
-```bash
-# Alfred 依赖 PostgreSQL + PGVector，可用 Docker 一键启动 PG
-cp .env.example .env && vim .env
-docker run -d --name alfred-pg \
-  -e POSTGRES_PASSWORD=yourpassword \
-  -e POSTGRES_DB=alfred \
-  -p 5432:5432 \
-  pgvector/pgvector:pg16
-python app.py
-# → http://localhost:8001
-```
+使用 Portal 根级 Compose。`MakeItSpecific/docker-compose.yml` 定义 `specific-api`（容器 `alfred-api`，内部端口 8000），依赖根级 PostgreSQL；AlfredAdmin 也是根级编排的一部分。子项目 Compose 不自包含 PostgreSQL。运维参考 [Portal 运维说明](../CONTROLWEB.md)，变更时以当前配置为准。
 
 ## 加新 Skill
 
@@ -143,11 +104,11 @@ class MySkill(BaseSkill):
 ## 目录结构
 
 ```
-Alfred/
+MakeItSpecific/
 ├── app.py              ← FastAPI 入口
 ├── config.py           ← 全局配置 (dataclass, 多 provider)
 ├── Dockerfile
-├── docker-compose.yml  ← 含 PostgreSQL 服务，完全自包含
+├── docker-compose.yml  ← Python 服务定义，依赖 Portal 根级 PostgreSQL
 ├── .env.example        ← 环境变量模板
 │
 ├── core/
@@ -217,6 +178,8 @@ Alfred/
 ```
 
 ## Session 记录
+
+以下为历史记录，描述当时的实现，不作为当前部署方式或产品方向的依据。特别是 2026-07-22 的独立仓库、自包含 Compose 和环境读取规则已不适用于当前 Portal checkout。
 
 ### 2026-07-27 — Docs 整理
 
