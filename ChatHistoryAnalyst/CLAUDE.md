@@ -1,5 +1,7 @@
 # ChatLab (ChatHistoryAnalyst)
 
+> 2026-10-20 状态：本项目已从 Portal 网站及默认运行中停用，源码保留，另存本地快照；不是新建了独立远程仓库。下文是历史子项目说明，不得据此恢复首页、根级 Compose 或启动器接入。当前边界与回退见 [下线说明](../docs/chatlab-retirement.md) 和 [项目认知](../docs/project-context.md)。尤其不要直接启动本目录旧 Compose，它仍包含共享 PostgreSQL 定义。
+
 > Portal 子项目。外层运维见 [../CLAUDE.md](../CLAUDE.md)。
 
 ## 项目定位

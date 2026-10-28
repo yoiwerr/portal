@@ -1,5 +1,7 @@
 # ControlWeb — Portal 服务器运维手册
 
+> ChatLab 已下线。本文涉及 `/chatlab`、根级 `/api`、`api` 和 `streamlit` 服务的段落为历史记录，不再执行。共享数据库与数据卷仍保留；本次服务器更新、旧容器停用及验证步骤以 [下线说明](docs/chatlab-retirement.md) 为准。
+
 > 从零到正常网址：服务器管理 + 域名 + HTTPS + 日常更新。
 
 ---
@@ -18,7 +20,7 @@ https://your-domain.com  ← 你的域名（HTTPS，有绿锁）
     ├── nginx (port 80/443)
     │     ├── /          → 首页 static/index.html
     │     ├── /chatlab   → static/chatlab.html
-    │     ├── /alfred/*  → proxy → alfred-api:8000
+    │     ├── /dude/*  → proxy → dude-api:8000
     │     ├── /api/*     → proxy → chalab-api:8000
     │     ├── /css/*     → static/css/
     │     ├── /js/*      → static/js/
@@ -27,10 +29,10 @@ https://your-domain.com  ← 你的域名（HTTPS，有绿锁）
     │
     ├── chalab-api (FastAPI :8000)
     ├── chalab-streamlit (Streamlit :8501)
-    ├── alfred-api (FastAPI :8000 /app — Alfred Agent)
+    ├── dude-api (FastAPI :8000 /app — dude Agent)
     └── chalab-postgres (PostgreSQL + pgvector)
          ├── chatdemopg  (ChatLab 数据库)
-         └── alfred      (Alfred 数据库 — 独立)
+         └── alfred      (dude 数据库 — 独立)
 ```
 
 ---
@@ -274,7 +276,7 @@ sudo crontab -e
 访问：
 - `https://your-domain.com` → 首页
 - `https://your-domain.com/chatlab` → ChatLab
-- `https://your-domain.com/alfred` → Alfred
+- `https://your-domain.com/dude` → dude
 - `https://your-domain.com/api/docs` → ChatLab API 文档
 
 浏览器地址栏有 **🔒 绿锁**。

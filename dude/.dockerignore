@@ -1,0 +1,15 @@
+.git
+.env
+.env.*
+!.env.example
+.venv
+__pycache__
+**/__pycache__
+*.pyc
+data
+var
+*.log
+*.dump
+*.pem
+*.key
+dude-admin

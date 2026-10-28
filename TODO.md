@@ -1,5 +1,7 @@
 # Portal — 部署清单
 
+> ChatLab 已下线：本文 ChatLab 页面、API、Streamlit 检查项不再适用。当前部署入口见 [README](README.md)，这次更新与数据库保留要求见 [下线说明](docs/chatlab-retirement.md)。
+
 多项目统一入口，按顺序从上往下做。
 
 ---
@@ -98,18 +100,18 @@ chmod +x scripts/deploy.sh
 ```bash
 cd ~/portal
 docker compose ps
-# 应该看到：portal-nginx、chalab-api、chalab-streamlit、chalab-postgres、alfred-api
+# 应该看到：portal-nginx、chalab-api、chalab-streamlit、chalab-postgres、dude-api
 
 curl http://localhost               # 首页 HTML
 curl http://localhost/api/v1/imported_files  # ChatLab API
-curl http://localhost/alfred/api/health      # Alfred API
+curl http://localhost/dude/api/health      # dude API
 ```
 
 浏览器访问 `http://<服务器公网IP>`
 
 - [ ] 首页正常
 - [ ] ChatLab 正常
-- [ ] MakeItSpecific 正常
+- [ ] dude 正常
 - [ ] API 正常
 
 ---
@@ -120,9 +122,9 @@ curl http://localhost/alfred/api/health      # Alfred API
 |------|------|
 | 首页 | `http://<IP>` |
 | ChatLab | `http://<IP>/chatlab` |
-| MakeItSpecific | `http://<IP>/alfred` |
+| dude | `http://<IP>/dude` |
 | ChatLab API 文档 | `http://<IP>/api/docs` |
-| Specific API 文档 | `http://<IP>/alfred/docs` |
+| Specific API 文档 | `http://<IP>/dude/docs` |
 
 ---
 
@@ -133,9 +135,9 @@ cd ~/portal
 
 docker compose logs -f              # 实时日志（全部服务）
 docker compose logs api             # 只看 ChatLab API
-docker compose logs specific-api      # 只看 Alfred API
+docker compose logs dude-api      # 只看 dude API
 docker compose restart api          # 重启 ChatLab API
-docker compose restart specific-api   # 重启 Alfred
+docker compose restart dude-api   # 重启 dude
 docker compose down                 # 停止全部
 docker compose up -d --build        # 重建启动全部
 ```
@@ -156,7 +158,7 @@ docker compose up -d --build        # 重建启动全部
 # ChatLab PostgreSQL
 docker compose exec postgres pg_dump -U postgres chatdemopg > backup_chatlab_$(date +%Y%m%d).sql
 
-# Alfred PostgreSQL（同一实例，独立数据库）
+# dude PostgreSQL（同一实例，独立数据库）
 docker compose exec postgres pg_dump -U postgres alfred > backup_alfred_$(date +%Y%m%d).sql
 
 # 恢复

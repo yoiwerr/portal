@@ -1,5 +1,7 @@
 # Docker 部署学习笔记
 
+> ChatLab 已退出 Portal 编排，本文相关容器图和应用启动示例保留作历史学习资料，不作为当前部署命令。共享 PostgreSQL 由根级 Compose 管理，保留原容器与卷。当前操作见 [ChatLab 下线说明](chatlab-retirement.md) 和 [根 README](../README.md)。
+
 > 面向实际运维，不是 Docker 说明书。每个概念都配 Portal 项目的真实例子。
 
 ---
@@ -18,18 +20,18 @@ Portal 项目涉及：Python 3.12、PostgreSQL + pgvector、nginx、uvicorn、St
 
 | 概念 | 类比 | Portal 例子 |
 |------|------|-------------|
-| **镜像** | 安装包 / `.exe` | `Dockerfile` 跑完生成的东西，包含了 Python 3.12 + 所有 pip 包 + Alfred 源码 |
-| **容器** | 正在运行的程序 | `docker compose up -d` 后跑起来的 alfred-api、chalab-api |
+| **镜像** | 安装包 / `.exe` | `Dockerfile` 跑完生成的东西，包含了 Python 3.12 + 所有 pip 包 + dude 源码 |
+| **容器** | 正在运行的程序 | `docker compose up -d` 后跑起来的 dude-api、chalab-api |
 
 同一个镜像可以起多个容器。改代码需要重新 `docker compose build` 生成新镜像，然后起新容器。
 
 ### 2.2 docker-compose.yml
 
-单容器够简单，但 Portal 有 5 个服务（nginx、api、streamlit、specific-api、postgres），手动一个个启太累。
+单容器够简单，但 Portal 有 5 个服务（nginx、api、streamlit、dude-api、postgres），手动一个个启太累。
 
 `docker-compose.yml` 就是一个说明书：告诉 Docker 这些服务叫什么、用哪个镜像、开放哪个端口、依赖谁先启动。`docker compose up -d` 一键全起。
 
-Portal 的 compose 特殊之处：用了 `include` 把子项目的 compose 文件引入，这样 Alfred 和 ChatLab 各管各的 Docker 配置，portal 层只负责编排 + nginx。
+Portal 的 compose 特殊之处：用了 `include` 把子项目的 compose 文件引入，这样 dude 和 ChatLab 各管各的 Docker 配置，portal 层只负责编排 + nginx。
 
 ### 2.3 Volume — 数据持久化
 
@@ -45,7 +47,7 @@ volumes:
 所有 compose 服务自动在同一个虚拟网络里。容器之间用 **服务名** 当主机名互相访问：
 
 ```
-specific-api 容器 → 连接 postgres:5432   # 不是 localhost，是 compose 服务名
+dude-api 容器 → 连接 postgres:5432   # 不是 localhost，是 compose 服务名
 nginx 容器      → 反向代理 api:8000       # 同理
 ```
 
@@ -76,7 +78,7 @@ nginx 容器      → 反向代理 api:8000       # 同理
 │                                            │
 │  include:                                  │
 │    ChatHistoryAnalyst/docker-compose.yml   │
-│    MakeItSpecific/docker-compose.yml       │
+│    dude/docker-compose.yml       │
 └────────────────────────────────────────────┘
 ```
 
@@ -86,7 +88,7 @@ nginx 容器      → 反向代理 api:8000       # 同理
 | `chalab-postgres` | pgvector/pgvector:pg16 | 5432（内网） | 共享 PostgreSQL，两个独立库 |
 | `chalab-api` | ChatHistoryAnalyst/Dockerfile | 8000（内网） | ChatLab FastAPI 后端 |
 | `chalab-streamlit` | ChatHistoryAnalyst/Dockerfile | 8501（内网） | ChatLab Streamlit 前端 |
-| `alfred-api` | MakeItSpecific/Dockerfile | 8000（内网） | Alfred Agent 后端 |
+| `dude-api` | dude/Dockerfile | 8000（内网） | dude Agent 后端 |
 
 ---
 
@@ -97,7 +99,7 @@ nginx 容器      → 反向代理 api:8000       # 同理
 ```
 postgres:5432
 ├── chatdemopg    ← ChatLab（聊天分析 + 心理学知识库 + LLM 记忆）
-└── alfred        ← Alfred（任务契约 + 知识库 chunks + 会话记忆 + 用户画像）
+└── alfred        ← dude（任务契约 + 知识库 chunks + 会话记忆 + 用户画像）
 ```
 
 - `PGSQLPASSWORD` 一个密码管两个库
@@ -115,21 +117,21 @@ cd ~/portal
 docker compose up -d                    # 启动（不重建镜像）
 docker compose up -d --build            # 重建镜像并启动
 docker compose down                     # 停止并删除所有容器
-docker compose restart specific-api     # 单独重启 Alfred
+docker compose restart dude-api     # 单独重启 dude
 
 # ── 查看状态 ──
 docker compose ps                       # 所有容器运行状态
-docker compose logs --tail=50 specific-api    # Alfred 最近 50 行日志
-docker compose logs -f specific-api           # Alfred 实时日志
+docker compose logs --tail=50 dude-api    # dude 最近 50 行日志
+docker compose logs -f dude-api           # dude 实时日志
 docker stats                            # CPU / 内存占用
 
 # ── 进入容器调试 ──
-docker compose exec specific-api bash         # 进 Alfred 容器
-docker compose exec postgres psql -U postgres -d alfred   # 进 Alfred 数据库
+docker compose exec dude-api bash         # 进 dude 容器
+docker compose exec postgres psql -U postgres -d alfred   # 进 dude 数据库
 
 # ── 重建（改了代码/依赖后）──
-docker compose build --no-cache specific-api  # 强制重建（不用缓存）
-docker compose up -d --force-recreate specific-api  # 用新镜像重建容器
+docker compose build --no-cache dude-api  # 强制重建（不用缓存）
+docker compose up -d --force-recreate dude-api  # 用新镜像重建容器
 ```
 
 ---
@@ -201,7 +203,7 @@ docker compose logs api    # 看那个容器的错误日志
 
 常见原因：
 - `.env` 里 `PGSQLPASSWORD` 跟 PG 容器初始化时的不一致 → 删掉 volume 重建
-- `DEEPSEEK_API_KEY` 格式不对 → Alfred 启动报 LLM 连接失败
+- `DEEPSEEK_API_KEY` 格式不对 → dude 启动报 LLM 连接失败
 - 端口被占用 → `sudo lsof -i :80` 看谁占了
 
 ### 8.2 502 Bad Gateway
@@ -210,13 +212,13 @@ nginx 能跑但连不上后端。排查链：
 
 ```bash
 # 1. 后端容器活着吗
-docker compose ps | grep -E "api|specific-api"
+docker compose ps | grep -E "api|dude-api"
 
 # 2. 后端在自己端口上能响应吗
-docker compose exec specific-api curl -sf http://localhost:8000/api/health
+docker compose exec dude-api curl -sf http://localhost:8000/api/health
 
 # 3. nginx 能连上后端吗（从 nginx 容器内测试）
-docker compose exec nginx wget -qO- http://specific-api:8000/api/health
+docker compose exec nginx wget -qO- http://dude-api:8000/api/health
 ```
 
 常见原因：后端容器 crash 了（查 `docker compose logs`）、容器启动了但 health check 没过（nginx 等它 healthy 才放流量）。
@@ -295,7 +297,7 @@ docker image prune -f --filter "until=24h"
 
 ## 11. Dockerfile 是怎么写的
 
-以 Alfred 的 Dockerfile 为例，逐行解释：
+以 dude 的 Dockerfile 为例，逐行解释：
 
 ```dockerfile
 FROM python:3.12-slim          # 基于 Python 3.12 官方精简镜像
@@ -333,9 +335,9 @@ COPY . .
 
 ```yaml
 services:
-  specific-api:                              # 服务名 — 也是容器间通信的主机名
+  dude-api:                              # 服务名 — 也是容器间通信的主机名
     build: .                                  # 用当前目录的 Dockerfile 构建
-    container_name: alfred-api               # 固定的容器名（方便 docker logs 指定）
+    container_name: dude-api               # 固定的容器名（方便 docker logs 指定）
     command: uvicorn app:app --host 0.0.0.0 --port 8000   # 容器启动时执行的命令
     environment:                              # 注入环境变量，${VAR} 从宿主机 .env 读
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
@@ -400,7 +402,7 @@ services:
 
 6. **nginx 的 `depends_on` 用 `service_healthy` 而不是 `service_started`。** start 了不代表健康，nginx 会在后端没准备好时返回 502。
 
-7. **docker compose 的 `include` 路径相对于被 include 文件的目录。** MakeItSpecific/docker-compose.yml 里的 `build: .` 是 MakeItSpecific 目录，不是 portal 根目录。
+7. **docker compose 的 `include` 路径相对于被 include 文件的目录。** dude/docker-compose.yml 里的 `build: .` 是 dude 目录，不是 portal 根目录。
 
 
 ## 已有 Portal 服务器加入 Journal（Git 拉取部署）
@@ -413,7 +415,7 @@ services:
 git add Journal ops scripts/check-production-config.sh scripts/deploy-journal.sh \
   docs/postgresql-backup-and-restore.md docs/docker-deploy-guide.md \
   .env.example docker-compose.yml nginx/default.conf run_dev.py \
-  MakeItSpecific/pyproject.toml MakeItSpecific/uv.lock MakeItSpecific/AlfredAdmin/
+  dude/pyproject.toml dude/uv.lock dude/dude-admin/
 git commit -m "deploy portal journal with postgres"
 git push
 ```

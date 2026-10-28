@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>登录 · dude</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/dude/auth/static/css/login.css?v=20261019">
+</head>
+<body>
+<header class="site-header"><a class="brand" href="/dude/">dude<span>.</span></a><span>从想法到方案</span></header>
+<main class="login-layout">
+  <section class="login-intro" aria-labelledby="introTitle">
+    <p class="eyebrow">给每一个「我想做」一个开始</p>
+    <h1 id="introTitle">有个想法，<br>就从这里开始<span>。</span></h1>
+    <p class="intro-description">不用先学会技术名词。<br>和 dude 聊一聊，把想法整理成能交给编程 Agent 的项目方案。</p>
+    <ol class="intro-steps"><li><span>01</span>描述你想做的事</li><li><span>02</span>一起确定功能与选择</li><li><span>03</span>带走一份完整方案</li></ol>
+  </section>
+  <section class="login-card" aria-label="账号登录与注册">
+    <h2>开始和 dude 聊聊</h2>
+    <p class="card-description">登录账号，梳理你的下一个项目。</p>
+    <div class="tabs" role="group" aria-label="选择登录或注册">
+      <button type="button" class="tab active" data-tab="login" aria-pressed="true" aria-controls="login-form">登录</button>
+      <button type="button" class="tab" data-tab="register" aria-pressed="false" aria-controls="register-form">注册</button>
+    </div>
+    <form id="login-form" class="auth-form active">
+      <div class="field"><label for="login-username">用户名</label><input type="text" id="login-username" name="username" placeholder="输入你的用户名" autocomplete="username" required></div>
+      <div class="field"><label for="login-password">密码</label><input type="password" id="login-password" name="password" placeholder="输入密码" autocomplete="current-password" required></div>
+      <div class="error" id="login-error" role="alert"></div>
+      <button type="submit" class="btn-primary" id="login-btn">登录</button>
+    </form>
+    <form id="register-form" class="auth-form">
+      <div class="field"><label for="reg-username">用户名</label><input type="text" id="reg-username" name="username" placeholder="3–64 个字符" minlength="3" maxlength="64" autocomplete="username" required></div>
+      <div class="field"><label for="reg-password">密码</label><input type="password" id="reg-password" name="password" placeholder="至少 6 个字符" minlength="6" autocomplete="new-password" required></div>
+      <div class="error" id="reg-error" role="alert"></div>
+      <button type="submit" class="btn-primary" id="reg-btn">注册并开始</button>
+    </form>
+    <p class="footer-note">dude 整理方案，由你选择的编程 Agent 实现。</p>
+  </section>
+</main>
+<footer class="site-footer">先想清楚，再开始做。</footer>
+<script src="/dude/auth/static/js/auth.js?v=20261019"></script>
+</body>
+</html>

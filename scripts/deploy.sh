@@ -33,10 +33,8 @@ if [ ! -f .env ]; then
     if [ -z "$PG_PASS" ]; then err "PostgreSQL 密码不能为空"; fi
 
     read -rp "  DashScope API Key (Embedding + Rerank，必填): " DASHSCOPE_KEY
-    read -rp "  DeepSeek API Key (ChatLab + Alfred LLM): " DS_KEY
+    read -rp "  DeepSeek API Key (dude LLM): " DS_KEY
     read -rp "  OpenAI API Key (可选): " OAI_KEY
-    read -rp "  Tavily API Key (ChatLab 联网搜索，可选): " TAVILY_KEY
-    read -rp "  LangSmith API Key (可选): " LS_KEY
 
     cat > .env <<EOF
 # ============================================================
@@ -59,11 +57,7 @@ DB_HOST=postgres
 DB_PORT=5432
 DB_NAME=alfred
 
-# --- ChatLab ---
-TAVILY_API_KEY=${TAVILY_KEY}
-LANGSMITH_API_KEY=${LS_KEY}
-
-# --- Agent (Alfred) ---
+# --- Agent (dude) ---
 MEMORY_ENABLED=true
 SANDBOX_ENABLED=false
 MAX_TOOL_ROUNDS=10
@@ -108,25 +102,14 @@ docker compose up -d 2>&1
 echo ""
 echo "==== 等待服务就绪 ===="
 
-# ChatLab API (直连 Docker 网络，绕过 nginx SSL 问题)
-echo "  等待 ChatLab API..."
+# dude API
+echo "  等待 dude API..."
 for i in $(seq 1 20); do
-    if docker compose exec -T api curl -sf http://localhost:8000/api/v1/imported_files >/dev/null 2>&1; then
-        ok "ChatLab API 就绪"
+    if docker compose exec -T dude-api curl -sf http://localhost:8000/api/health >/dev/null 2>&1; then
+        ok "dude API 就绪"
         break
     fi
-    if [ "$i" -eq 20 ]; then warn "ChatLab API 未就绪，请检查: docker compose logs api"; fi
-    sleep 3
-done
-
-# Alfred API
-echo "  等待 Alfred API..."
-for i in $(seq 1 20); do
-    if docker compose exec -T specific-api curl -sf http://localhost:8000/api/health >/dev/null 2>&1; then
-        ok "Alfred API 就绪"
-        break
-    fi
-    if [ "$i" -eq 20 ]; then warn "Alfred API 未就绪，请检查: docker compose logs specific-api"; fi
+    if [ "$i" -eq 20 ]; then warn "dude API 未就绪，请检查: docker compose logs dude-api"; fi
     sleep 3
 done
 
@@ -141,18 +124,6 @@ for i in $(seq 1 10); do
     sleep 2
 done
 
-# ── 导入 ChatLab 知识库 ──
-echo ""
-echo "==== 导入 ChatLab 知识库 ===="
-docker compose exec -T api python -c "
-from src.rag_function import list_imported_files
-files = list_imported_files()
-if files:
-    print(f'已导入 {len(files)} 个知识文件，跳过')
-else:
-    print('知识库为空，请手动运行: docker compose exec api python import_knowledge.py')
-" 2>/dev/null || warn "知识库状态检查失败（不影响部署）"
-
 # ── 完成 ──
 echo ""
 echo "========================================"
@@ -160,8 +131,8 @@ echo " 部署完成"
 echo ""
 echo " 外网访问:"
 echo "   http://<服务器IP>              — 首页"
-echo "   http://<服务器IP>/chatlab      — ChatLab"
-echo "   http://<服务器IP>/alfred      — Alfred"
+echo "   http://<服务器IP>/journal/     — Journal"
+echo "   http://<服务器IP>/dude      — dude"
 echo ""
 echo " 常用命令:"
 echo "   docker compose logs -f          — 实时日志"

@@ -5,6 +5,7 @@ __pycache__/
 dist/
 
 # Virtual env
+node_modules/
 .venv/
 .venv_broken/
 
@@ -39,3 +40,14 @@ pgdata/
 *.log
 inf.txt
 
+# Local development runner ownership (contains no credentials)
+.portal-dev.lock
+
+# dude Wiki admin snapshots/candidates and published releases: back up separately.
+dude/var/
+
+# Old deployments may retain ignored runtime files after the source rename.
+MakeItSpecific/var/
+MakeItSpecific/data/
+MakeItSpecific/**/*.db
+MakeItSpecific/**/.pytest_cache/

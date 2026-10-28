@@ -70,7 +70,6 @@ fi
 CHANGED_FILES=$(git diff --name-only "$LOCAL_HEAD" HEAD 2>/dev/null || echo "")
 
 rebuild_all=false
-rebuild_chatlab=false
 rebuild_specific=false
 rebuild_journal=false
 
@@ -82,14 +81,14 @@ elif [ -z "$CHANGED_FILES" ]; then
     echo ""
     echo "无法检测变更范围。"
     echo "  [A] 全部重建 (安全)"
-    echo "  [S] 仅重建 MakeItSpecific"
-    echo "  [C] 仅重建 ChatLab"
+    echo "  [S] 仅重建 dude"
+    echo "  [J] 仅重建 Journal"
     echo "  [N] 不重建，仅重启"
-    read -rp "选择 [A/s/c/n]: " CHOICE
+    read -rp "选择 [A/s/j/n]: " CHOICE
     case "${CHOICE:-A}" in
         [Aa]) rebuild_all=true ;;
         [Ss]) rebuild_specific=true ;;
-        [Cc]) rebuild_chatlab=true ;;
+        [Jj]) rebuild_journal=true ;;
         *)    rebuild_all=false ;;
     esac
 else
@@ -97,23 +96,19 @@ else
     echo "$CHANGED_FILES" | head -20
     echo ""
 
-    if echo "$CHANGED_FILES" | grep -q "^MakeItSpecific/"; then
+    if echo "$CHANGED_FILES" | grep -q "^dude/"; then
         rebuild_specific=true
-        echo "  → MakeItSpecific 有变更，将重建"
+        echo "  → dude 有变更，将重建"
     fi
     if echo "$CHANGED_FILES" | grep -q "^Journal/"; then
         rebuild_journal=true
         echo "  → Journal 有变更，将重建"
     fi
-    if echo "$CHANGED_FILES" | grep -q "^ChatHistoryAnalyst/"; then
-        rebuild_chatlab=true
-        echo "  → ChatLab 有变更，将重建"
-    fi
     if echo "$CHANGED_FILES" | grep -qE "^(nginx/|static/|docker-compose.yml|\.env)"; then
         rebuild_all=true
         echo "  → Portal 基础设施有变更，将重建 nginx"
     fi
-    if ! $rebuild_specific && ! $rebuild_chatlab && ! $rebuild_all; then
+    if ! $rebuild_specific && ! $rebuild_journal && ! $rebuild_all; then
         echo ""
         ok "无镜像需要重建（仅文档/脚本变更）"
         echo "如需强制重建: ./scripts/update.sh --rebuild"
@@ -122,7 +117,7 @@ else
 fi
 
 # Journal 与其他子项目同时变化时全部重建，避免遗漏服务。
-if $rebuild_journal && { $rebuild_specific || $rebuild_chatlab; }; then rebuild_all=true; fi
+if $rebuild_journal && $rebuild_specific; then rebuild_all=true; fi
 
 # ── 构建 & 重启 ──
 echo ""
@@ -141,23 +136,10 @@ elif $rebuild_journal; then
     docker compose run --rm journal uv run alembic upgrade head
     docker compose up -d --force-recreate journal
     docker compose restart nginx
-elif $rebuild_specific && $rebuild_chatlab; then
-    echo "→ 重建 specific-api + api"
-    docker compose build specific-api
-    docker compose build api
-    docker compose up -d --force-recreate specific-api api
-    # 重启 nginx 以刷新 upstream 缓存
-    docker compose restart nginx
 elif $rebuild_specific; then
-    echo "→ 重建 specific-api"
-    docker compose build specific-api
-    docker compose up -d --force-recreate specific-api
-    docker compose restart nginx
-elif $rebuild_chatlab; then
-    echo "→ 重建 ChatLab (api + streamlit)"
-    docker compose build api
-    docker compose build streamlit
-    docker compose up -d --force-recreate api streamlit
+    echo "→ 重建 dude-api + dude-admin"
+    docker compose build dude-api dude-admin
+    docker compose up -d --force-recreate dude-api dude-admin
     docker compose restart nginx
 fi
 
@@ -182,9 +164,9 @@ check_url() {
 }
 
 sleep 3  # 等容器启动
-check_url "http://localhost/api/health"           "ChatLab API"
-check_url "http://localhost/alfred/api/health"  "Alfred API"
-check_url "http://localhost"                       "Portal 首页"
+check_url "https://localhost/journal/health"      "Journal API"
+check_url "https://localhost/dude/api/health"  "dude API"
+check_url "https://localhost"                       "Portal 首页"
 
 # ── 显示状态 ──
 echo ""
@@ -202,9 +184,9 @@ echo " 更新完成"
 echo "========================================"
 echo ""
 echo " 常用命令:"
-echo "   docker compose logs -f specific-api   — MakeItSpecific 日志"
-echo "   docker compose logs -f api            — ChatLab API 日志"
+echo "   docker compose logs -f dude-api   — dude 日志"
+echo "   docker compose logs -f journal        — Journal 日志"
 echo "   docker compose logs -f nginx          — nginx 日志"
 echo "   docker compose ps                     — 服务状态"
-echo "   docker compose restart specific-api   — 单独重启"
+echo "   docker compose restart dude-api   — 单独重启"
 echo ""

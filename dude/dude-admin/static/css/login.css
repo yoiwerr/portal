@@ -1,0 +1,52 @@
+:root { color-scheme: light; --accent: #002FA7; --text: #202126; --muted: #656770; --line: #E5E5E9; }
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; background: #FFFFFF; color: var(--text); font: 16px/1.65 "Helvetica Neue", Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+h1, h2, p { margin: 0; }
+button, input { font: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.site-header { display: flex; align-items: center; gap: 24px; height: 76px; padding: 0 40px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
+.brand { text-decoration: none; color: var(--text); font-size: 26px; font-weight: 750; letter-spacing: -1.2px; }
+.brand span, h1 span { color: var(--accent); }
+.site-header > span { font-size: 13px; color: var(--muted); padding-left: 24px; border-left: 1px solid var(--line); }
+.login-layout { width: min(1040px, calc(100% - 80px)); margin: auto; display: grid; grid-template-columns: 1fr 410px; align-items: center; gap: 100px; padding: 64px 0; }
+.eyebrow { font-size: 13px; color: var(--accent); margin-bottom: 20px; }
+h1 { font-size: clamp(32px, 3.5vw, 46px); font-weight: 650; line-height: 1.4; letter-spacing: -1.5px; }
+.intro-description { color: var(--muted); font-size: 15px; line-height: 1.9; margin-top: 24px; max-width: 360px; }
+.intro-steps { list-style: none; padding: 26px 0 0; margin: 28px 0 0; border-top: 1px solid var(--line); display: grid; gap: 13px; font-size: 13px; }
+.intro-steps span { color: var(--accent); font-size: 12px; margin-right: 17px; font-variant-numeric: tabular-nums; }
+.login-card { padding: 34px; border: 1px solid var(--line); background: #FFFFFF; border-radius: 16px; }
+.login-card h2 { font-size: 22px; font-weight: 600; }
+.card-description { font-size: 13px; color: var(--muted); margin-top: 7px; }
+.tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--line); margin: 28px 0 24px; }
+.tab { border: 0; border-bottom: 2px solid transparent; background: none; padding: 9px 2px; font-size: 14px; color: var(--muted); }
+.tab.active { border-bottom-color: var(--accent); color: var(--accent); font-weight: 600; }
+.auth-form { display: none; }
+.auth-form.active { display: block; }
+.field + .field { margin-top: 18px; }
+.field label { display: block; font-size: 13px; margin-bottom: 7px; }
+.field input { width: 100%; border: 1px solid #CFD1D9; border-radius: 7px; background: #FFFFFF; color: var(--text); padding: 11px 12px; font-size: 16px; min-height: 46px; }
+.field input:focus { outline: 2px solid #EEF2FC; border-color: var(--accent); }
+.field input::placeholder { color: #797B84; font-size: 14px; }
+.error { color: #A12222; font-size: 13px; min-height: 24px; padding-top: 10px; margin-bottom: 12px; overflow-wrap: anywhere; }
+.btn-primary { width: 100%; border: 0; background: var(--accent); color: #FFFFFF; font-size: 14px; font-weight: 500; padding: 12px; border-radius: 7px; }
+.btn-primary:hover { background: #002680; }
+.btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+.footer-note { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; line-height: 1.8; }
+.site-footer { padding: 24px 40px; color: var(--muted); font-size: 11px; }
+@media (max-width: 900px) { .login-layout { gap: 40px; grid-template-columns: 1fr 380px; } }
+@media (max-width: 720px) {
+  .site-header { height: 64px; padding: 0 22px; }
+  .site-header > span { font-size: 12px; }
+  .login-layout { display: block; width: min(420px, calc(100% - 40px)); padding: 36px 0; }
+  .login-intro { margin-bottom: 30px; }
+  h1 { font-size: 30px; }
+  h1 br { display: none; }
+  .eyebrow { margin-bottom: 10px; font-size: 12px; }
+  .intro-description { font-size: 13px; margin-top: 12px; }
+  .intro-description br { display: none; }
+  .intro-steps { display: none; }
+  .login-card { padding: 25px; }
+  .login-card h2 { font-size: 20px; }
+  .site-footer { padding: 20px 22px; }
+}

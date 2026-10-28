@@ -1,20 +1,19 @@
 .PHONY: dev dev-wsl stop
 
-# Auto-detect: runs inside WSL directly, or from Windows via `wsl.exe` command
+# Linux and WSL run directly; Windows GNU Make delegates to WSL.
+ifeq ($(OS),Windows_NT)
+DEV_RUN = wsl.exe bash -lc 'cd /home/yoiwerr/portal && uv run --frozen --env-file .env python run_dev.py'
+STOP_RUN = wsl.exe bash -lc 'cd /home/yoiwerr/portal && python3 run_dev.py --stop'
+else
+DEV_RUN = uv run --frozen --env-file .env python run_dev.py
+STOP_RUN = python3 run_dev.py --stop
+endif
+
 dev:
-	@if [ -f /proc/sys/fs/binfmt_misc/WSLInterop ] 2>/dev/null; then \
-		uv run --env-file .env python run_dev.py; \
-	else \
-		wsl.exe bash -c "cd /home/yoiwerr/portal && uv run --env-file .env python run_dev.py"; \
-	fi
+	@$(DEV_RUN)
 
-# Force run from Windows side via `wsl.exe` (even if already in WSL)
 dev-wsl:
-	@wsl.exe bash -c "cd /home/yoiwerr/portal && uv run --env-file .env python run_dev.py"
+	@wsl.exe bash -lc 'cd /home/yoiwerr/portal && uv run --frozen --env-file .env python run_dev.py'
 
-# Kill all dev servers
 stop:
-	@fuser -k 8080/tcp 2>/dev/null || true
-	@fuser -k 8000/tcp 2>/dev/null || true
-	@fuser -k 8001/tcp 2>/dev/null || true
-	@echo "All dev servers stopped."
+	@$(STOP_RUN)

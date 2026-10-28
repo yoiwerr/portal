@@ -1,0 +1,6 @@
+{
+  "pages": [
+    {"path": "defaults.md", "title": "小规模新项目的默认方案", "default": true, "keywords": ["网站", "技术", "记录", "数据库", "部署", "默认"], "reviewed_at": "2026-10-22", "sources": ["https://docs.djangoproject.com/en/stable/intro/overview/", "https://www.postgresql.org/docs/current/backup.html"]},
+    {"path": "access-and-data.md", "title": "访问、数据与费用的取舍", "default": true, "keywords": ["权限", "朋友", "账号", "公开", "备份", "费用", "手机"], "reviewed_at": "2026-10-22", "sources": ["https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html", "https://www.postgresql.org/docs/current/backup.html"]}
+  ]
+}

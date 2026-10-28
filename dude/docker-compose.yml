@@ -1,0 +1,48 @@
+services:
+  dude-api:
+    build: .
+    container_name: dude-api
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --timeout-keep-alive 120
+    environment:
+      # LLM
+      LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in root .env}
+      # PostgreSQL
+      PGSQLPASSWORD: ${PGSQLPASSWORD}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: alfred
+      DB_USER: ${DB_USER:-postgres}
+      # Agent
+      # Active planning uses versioned JSONB and Wiki, not vector memory.
+      MEMORY_ENABLED: "false"
+      DUDE_WIKI_PUBLISHED_DIR: /var/lib/dude-wiki
+      DUDE_WIKI_ALLOW_SEED: ${DUDE_WIKI_ALLOW_SEED:-${ALFRED_WIKI_ALLOW_SEED:-true}}
+      SANDBOX_ENABLED: ${SANDBOX_ENABLED:-false}
+      MAX_TOOL_ROUNDS: ${MAX_TOOL_ROUNDS:-10}
+    volumes:
+      - type: bind
+        source: ./var/wiki-published
+        target: /var/lib/dude-wiki
+        read_only: true
+        bind:
+          create_host_path: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 512m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s

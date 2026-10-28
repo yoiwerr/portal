@@ -1,5 +1,7 @@
 # ChatLab — 聊天记录分析引擎
 
+> 已从 Portal 网站下线，源码作为停用项目保留，不参与根级 Compose 或开发启动。完整代码与原网页已另外归档；归档位置、校验和恢复步骤见 [下线说明](../docs/chatlab-retirement.md)。本目录旧 Compose 包含历史共享 PostgreSQL 定义，请勿在现有 Portal 环境直接启动。
+
 基于 AI Agent 的聊天记录深度分析工具，支持情感分析、语气模仿与沟通气氛评估。
 
 ## 功能

@@ -1,10 +1,27 @@
 include:
-  - ChatHistoryAnalyst/docker-compose.yml
-  - MakeItSpecific/docker-compose.yml
-  - MakeItSpecific/AlfredAdmin/docker-compose.yml
+  - dude/docker-compose.yml
+  - dude/dude-admin/docker-compose.yml
   - Journal/docker-compose.yml
 
 services:
+  # Shared infrastructure: preserve the existing container and volume identity.
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: chalab-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${PGSQLPASSWORD:?set PGSQLPASSWORD in root .env}
+      POSTGRES_DB: chatdemopg
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chatdemopg"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   nginx:
     image: nginx:1.28.0-alpine
     container_name: portal-nginx
@@ -18,12 +35,13 @@ services:
       - /etc/letsencrypt/live/yoiwerr.site/privkey.pem:/etc/letsencrypt/live/yoiwerr.site/privkey.pem:ro
       - /etc/letsencrypt/archive:/etc/letsencrypt/archive:ro
     depends_on:
-      api:
+      dude-api:
         condition: service_healthy
-      specific-api:
-        condition: service_healthy
-      alfred-admin:
+      dude-admin:
         condition: service_healthy
       journal:
         condition: service_healthy
     restart: unless-stopped
+
+volumes:
+  pgdata:

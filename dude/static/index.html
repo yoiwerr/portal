@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="和 dude 聊聊你的想法，整理一份可以交给编程 Agent 实施的新项目方案。">
+  <title>dude · 从想法到方案</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css?v=20261019">
+</head>
+<body>
+<div id="workspace" class="workspace">
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="dude 首页">dude<span class="brand-dot" aria-hidden="true">.</span></a>
+    <span class="brand-description">新项目方案助手</span>
+    <div class="topbar-user-area" id="topbarUserArea" aria-live="polite"><span class="topbar-user">正在连接…</span></div>
+  </header>
+  <div class="workspace-toolbar" id="workspaceToolbar" hidden>
+    <button class="text-button" onclick="startNewIdea()"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>新想法</button>
+    <div class="toolbar-actions">
+      <button class="text-button" id="summaryToggle" onclick="toggleSummary()" aria-controls="contractSidebar" aria-expanded="false" hidden><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/></svg>方案摘要</button>
+      <button class="text-button" id="navToggle" onclick="toggleTurnNav()" aria-controls="turnNav" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>对话目录</button>
+    </div>
+  </div>
+  <div class="app-body" id="appBody">
+    <main class="main-area" id="mainArea">
+      <div class="chat-area" id="chatArea">
+        <section class="empty-state" id="emptyState" aria-labelledby="welcomeTitle">
+          <p class="welcome-label">不需要懂技术，从一句话开始</p>
+          <h1 id="welcomeTitle">把你的想法，<br>整理成能开始做的方案<span class="heading-dot">。</span></h1>
+          <p class="empty-hint">聊清楚做什么、给谁用、第一版做到哪。<br class="desktop-break">dude 帮你整理好，再交给编程 Agent 实现。</p>
+        </section>
+        <div class="messages" id="messages" role="log" aria-label="与 dude 的对话" aria-live="polite" aria-relevant="additions" style="display:none;"></div>
+      </div>
+      <div class="composer" id="composer">
+        <div class="composer-box">
+          <label class="sr-only" for="userInput">描述你的项目想法</label>
+          <textarea id="userInput" placeholder="我想做一个……，用来……" rows="3" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+          <div class="composer-bottom"><span class="input-hint">不确定的细节，我们一起梳理</span><button class="composer-send" id="sendBtn" onclick="sendMessage()" aria-label="发送消息" title="发送消息" disabled><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div>
+        </div>
+        <p class="composer-error" id="composerError" role="alert" hidden></p>
+        <p class="composer-hint" id="composerHint">Enter 发送 · Shift + Enter 换行</p>
+      </div>
+      <section class="welcome-extras" id="welcomeExtras" aria-label="想法示例与使用步骤">
+        <div class="examples-heading">也可以从一个小想法开始</div>
+        <div class="example-questions">
+          <button class="example-btn" onclick="useExample('我想做一个个人网站，展示我的作品，让感兴趣的人联系我。')"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/></svg><span>个人网站</span></button>
+          <button class="example-btn" onclick="useExample('我想给自己的小店做一个预约页面，客人可以选时间，我能看到预约。')"><svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2"/></svg><span>小店预约</span></button>
+          <button class="example-btn" onclick="useExample('我想做一个记录读书的小工具，记下读过的书、进度和自己的感想。')"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 3H20v19H6.5A2.5 2.5 0 0 1 4 19.5v-14A2.5 2.5 0 0 1 6.5 3Z"/></svg><span>日常小工具</span></button>
+        </div>
+        <ol class="journey">
+          <li><span class="step-number">01</span><div><strong>说说想法</strong><p>用自己的话，描述想做的事</p></div></li>
+          <li><span class="step-number">02</span><div><strong>一起梳理</strong><p>确定功能，解释选择与取舍</p></div></li>
+          <li><span class="step-number">03</span><div><strong>带走方案</strong><p>交给编程 Agent，开始实施</p></div></li>
+        </ol>
+      </section>
+    </main>
+  </div>
+  <footer class="page-footer" id="pageFooter"><span>先想清楚，再开始做。</span><span>dude 提供方案，由编程 Agent 实现</span></footer>
+</div>
+<div class="panel-backdrop" id="panelBackdrop" onclick="closePanels()" hidden></div>
+<aside class="contract-sidebar" id="contractSidebar" aria-labelledby="summaryTitle" tabindex="-1" hidden>
+  <div class="panel-header"><div><p class="panel-eyebrow">边聊边整理</p><h2 id="summaryTitle">方案摘要</h2></div><button class="icon-button" onclick="toggleSummary(false)" aria-label="收起方案摘要"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+  <div class="contract-body" id="contractBody">
+    <div class="contract-empty" id="contractEmpty"><p>描述你的想法后，已梳理的信息会出现在这里。</p></div>
+    <div class="contract-card" id="contractCard" style="display:none;">
+      <section class="cc-section"><h3 class="cc-label">想做什么</h3><p class="cc-value cc-goal" id="ccGoal"></p></section>
+      <section class="cc-section"><h3 class="cc-label">第一版的范围</h3><div class="cc-scope-grid"><div><h4 class="cc-scope-tag">先做这些</h4><ul class="cc-list" id="ccScopeIn"></ul></div><div><h4 class="cc-scope-tag">暂时不做</h4><ul class="cc-list" id="ccScopeOut"></ul></div></div></section>
+      <section class="cc-section" id="ccConstraintsSection"><h3 class="cc-label">需要注意的条件</h3><ul class="cc-list" id="ccConstraints"></ul></section>
+      <section class="cc-section" id="ccAcceptanceSection"><h3 class="cc-label">怎样算做好</h3><ul class="cc-list" id="ccAcceptance"></ul></section>
+      <section class="cc-section" id="ccRisksSection"><h3 class="cc-label">需要留意的问题</h3><ul class="cc-list" id="ccRisks"></ul></section>
+      <section class="cc-section" id="ccDeliverablesSection"><h3 class="cc-label">最后会得到什么</h3><p class="cc-value" id="ccDeliverables"></p></section>
+      <div class="cc-confidence"><span>信息完整度</span><span id="ccConfPct">0%</span><div class="cc-confidence-bar"><div class="cc-confidence-fill" id="ccConfBar"></div></div></div>
+      <div class="cc-actions" id="ccActions"><button class="cc-btn cc-btn-confirm" id="ccBtnConfirm" onclick="confirmContract()">确认这些内容</button><button class="cc-btn" id="ccBtnModify" onclick="modifyContract()">修改</button></div>
+      <p id="summaryError" class="inline-error" role="alert" hidden></p>
+      <div class="cc-status" id="ccStatus"><span class="cc-status-badge draft">待确认</span></div>
+    </div>
+  </div>
+</aside>
+<nav class="turn-nav" id="turnNav" aria-labelledby="navTitle" tabindex="-1" hidden>
+  <div class="panel-header"><h2 id="navTitle">对话目录</h2><button class="icon-button" onclick="toggleTurnNav(false)" aria-label="关闭对话目录"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></svg></button></div>
+  <p class="nav-empty" id="navEmpty">开始对话后，可以在这里跳到某一轮。</p>
+  <div class="turn-nav-list" id="turnNavList"></div>
+</nav>
+<script src="js/chat.js?v=20261019-roles"></script>
+</body>
+</html>

@@ -40,8 +40,8 @@ pg_dump --format=custom --no-owner --no-privileges
 | 项目 | 数据库 | 应用用户 |
 | --- | --- | --- |
 | Journal | `journal` | `journal_user` |
-| MakeItSpecific（新安装） | `makeitspecific` | `makeitspecific_user` |
-| MakeItSpecific（现有线上兼容） | `alfred` | 以现有配置为准 |
+| dude（新安装） | `makeitspecific` | `makeitspecific_user` |
+| dude（现有线上兼容） | `alfred` | 以现有配置为准 |
 
 不要直接重命名现有 `alfred` 数据库。应先做备份和恢复演练，再安排独立迁移窗口。
 
@@ -92,7 +92,7 @@ sudo systemctl enable --now portal-backup.timer
 systemctl list-timers portal-backup.timer
 ```
 
-如果仓库路径、备份目录或 MakeItSpecific 数据库名不同，先编辑 `/etc/systemd/system/portal-backup.service` 中的 `PORTAL_DIR`、`BACKUP_DIR` 和 `ExecStart`。修改后执行：
+如果仓库路径、备份目录或 dude 数据库名不同，先编辑 `/etc/systemd/system/portal-backup.service` 中的 `PORTAL_DIR`、`BACKUP_DIR` 和 `ExecStart`。修改后执行：
 
 ```bash
 sudo systemctl daemon-reload

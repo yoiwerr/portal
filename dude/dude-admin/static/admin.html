@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>管理后台 · dude</title>
+  <link rel="stylesheet" href="/dude/admin/static/css/admin.css?v=20261019-roles">
+</head>
+<body>
+<div class="admin-layout">
+  <aside class="sidebar">
+    <a class="brand" href="/dude/" aria-label="dude 首页">dude<span>.</span></a>
+    <p class="sidebar-caption">管理后台</p>
+    <nav aria-label="管理导航">
+      <a href="#dashboard" class="nav-item active" data-panel="dashboard" aria-current="page">用量概览</a>
+      <a href="#users" class="nav-item" data-panel="users">用户与身份</a>
+      <a href="#models" class="nav-item" data-panel="models">模型配置</a>
+    </nav>
+    <div class="sidebar-footer">
+      <span id="admin-user">正在验证身份…</span>
+      <a href="/dude/" class="back-link">返回对话</a>
+      <button class="text-button" id="logout" type="button">退出登录</button>
+    </div>
+  </aside>
+  <main class="content" id="admin-content" hidden>
+    <div id="page-error" class="error" role="alert" hidden></div>
+    <section class="panel active" id="panel-dashboard" aria-labelledby="overview-title">
+      <div class="panel-header"><div><p class="eyebrow">账户与使用情况</p><h1 id="overview-title">用量概览</h1></div><button class="btn-secondary" id="refresh-dashboard" type="button">刷新数据</button></div>
+      <p class="description">了解谁在使用 dude，以及最近 30 天的模型用量。</p>
+      <div class="stats-grid" id="stats-summary" aria-live="polite"></div>
+      <div class="usage-note"><h2>这些数字代表什么</h2><p>一次对话可能调用模型多次。Token 是模型处理文字的计量单位，输入包括问题和上下文，输出包括模型回复。</p><p>这里统计已记录的规划调用，按模型返回的用量汇总，仅供参考，不等于实际账单。缺少用量的调用、未接入记录的步骤和旧数据可能不完整。</p></div>
+      <p class="hint" id="overview-updated"></p>
+    </section>
+    <section class="panel" id="panel-users" aria-labelledby="users-title">
+      <div class="panel-header"><div><p class="eyebrow">账号目录</p><h1 id="users-title">用户与身份</h1></div><span class="period-label">近 30 天用量</span></div>
+      <p class="description">查看账号身份、状态和用量。最近调用时间指模型调用，不代表最近登录。</p>
+      <form id="users-filter" class="filter-bar">
+        <div class="search-field"><label for="user-search">查找用户</label><input id="user-search" type="search" maxlength="64" placeholder="用户名或完整用户 ID" autocomplete="off"></div>
+        <div><label for="user-role">身份</label><select id="user-role"><option value="">全部身份</option><option value="admin">管理员</option><option value="user">普通用户</option></select></div>
+        <button type="submit" class="btn-primary">查询</button>
+      </form>
+      <div class="table-wrap" id="users-list" aria-live="polite"></div>
+      <div class="pagination"><span id="users-count"></span><div><button id="users-prev" class="btn-secondary" type="button" disabled>上一页</button><span id="users-page"></span><button id="users-next" class="btn-secondary" type="button" disabled>下一页</button></div></div>
+      <p class="hint">没有调用记录的用户显示为 0。用量取自模型返回值，仅供参考。</p>
+    </section>
+    <section class="panel" id="panel-models" aria-labelledby="models-title">
+      <div class="panel-header"><div><p class="eyebrow">现有配置记录</p><h1 id="models-title">模型配置</h1></div><button class="btn-primary" id="btn-add-model" type="button">添加模型</button></div>
+      <p class="description">此处维护配置记录。当前聊天服务仍读取运行环境中的模型配置。</p>
+      <div class="table-wrap" id="models-list"></div>
+      <p class="hint">API Key 只填写环境变量名称，实际密钥由服务器配置。</p>
+    </section>
+  </main>
+</div>
+<div class="modal" id="model-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
+  <div class="modal-content">
+    <h2 id="modal-title">添加模型</h2>
+    <form id="model-form">
+      <input type="hidden" id="model-id">
+      <div class="field"><label for="m-alias">显示名称</label><input id="m-alias" required maxlength="64"></div>
+      <div class="field"><label for="m-provider">服务商</label><select id="m-provider"><option value="deepseek">DeepSeek</option><option value="openai">OpenAI / 兼容接口</option><option value="dashscope">DashScope</option></select></div>
+      <div class="field"><label for="m-model">模型名称</label><input id="m-model" required maxlength="128"></div>
+      <div class="field"><label for="m-url">接口地址</label><input type="url" id="m-url" required maxlength="512"></div>
+      <div class="field"><label for="m-keyenv">API Key 环境变量名</label><input id="m-keyenv" required placeholder="OPENAI_API_KEY" pattern="[A-Z_][A-Z0-9_]*" maxlength="64"><p class="hint">例如 OPENAI_API_KEY，不是密钥本身。</p></div>
+      <p class="error" id="model-error" role="alert" hidden></p>
+      <div class="modal-actions"><button type="button" class="btn-secondary" id="btn-modal-cancel">取消</button><button type="submit" class="btn-primary" id="model-save">保存配置</button></div>
+    </form>
+  </div>
+</div>
+<script src="/dude/admin/static/js/admin.js?v=20261019-roles"></script>
+</body>
+</html>
