@@ -1,17 +1,25 @@
+# syntax=docker/dockerfile:1.7
 FROM golang:1.22-alpine AS builder
 
 ARG GOPROXY=https://goproxy.cn,direct
-ENV GOPROXY=${GOPROXY}
+ENV GOPROXY=${GOPROXY} \
+    GOMAXPROCS=1 \
+    GOMEMLIMIT=256MiB \
+    GOFLAGS=-p=1
 
 WORKDIR /app
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /admin ./cmd/gateway
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /healthcheck ./cmd/healthcheck
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /admin ./cmd/gateway
+RUN --mount=type=cache,target=/go/pkg/mod,sharing=locked \
+    --mount=type=cache,target=/root/.cache/go-build,sharing=locked \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /healthcheck ./cmd/healthcheck
 
 FROM scratch
 

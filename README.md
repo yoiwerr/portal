@@ -61,7 +61,9 @@ vim .env
 ./scripts/check-production-config.sh
 ```
 
-这一步只检查配置。首次部署还需要证书、数据库初始化及应用迁移；参考 [运维手册](CONTROLWEB.md)、[部署资料](docs/docker-deploy-guide.md) 和实际 Compose 配置。历史文档涉及 ChatLab 的部分已标记停用。
+这一步只检查配置。已有服务器执行 `git pull --ff-only` 后使用 `./scripts/update.sh dude`；默认仅更新 dude，`journal`/`all`/`nginx` 明确选择范围。所有部署入口共用锁、逐个构建，并对 BuildKit 限制 512 MiB 内存和 0.75 CPU；不重建已有 PostgreSQL，不自动清理回退镜像。首次安装准备证书和变量后使用 `./scripts/deploy.sh`。完整命令、失败行为、构建缓存和 SSH 卡顿排查见 [小内存服务器部署](docs/small-server-deployment.md)。
+
+首次部署还需要证书、数据库初始化及应用迁移；参考 [运维手册](CONTROLWEB.md)、[部署资料](docs/docker-deploy-guide.md) 和实际 Compose 配置。历史文档涉及 ChatLab 的部分已标记停用。
 
 已有服务器应用本次下线更新时，按 [下线步骤](docs/chatlab-retirement.md#服务器更新) 操作：保留原 Compose 项目名、`chalab-postgres` 和 `pgdata` 数据卷；不要运行 `down -v` 或重新初始化数据库。停止旧 ChatLab 应用容器即可，数据库继续供 dude 和 Journal 使用。
 

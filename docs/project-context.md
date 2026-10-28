@@ -1,5 +1,9 @@
 # Portal 当前项目认知
 
+## 2026-10-28 增补：小内存部署
+
+`scripts/update.sh [dude|journal|all|nginx]` 默认只更新 dude，不自动 Git 合并。`build.sh`、`update.sh`、`deploy.sh`、`deploy-journal.sh` 复用 `scripts/lib/deployment.sh`，共享 flock 锁及独立受限 BuildKit（512 MiB、内存加交换空间 1 GiB、0.75 CPU、内部/服务串行）。停止构建器保留缓存；失败停止部署，不自动清理镜像或回退数据库；已有 PostgreSQL 使用 `--no-recreate`。Go 编译串行、Python 使用 wheel 和锁定哈希，dude-orchestrator 不进入 Python 镜像。命令、前置条件与限制见 [部署说明](small-server-deployment.md)。这些配置不能证明事故一定由 OOM 导致，也不代表已经上线。
+
 ## 2026-10-28 增补：dude 第一阶段
 
 最新目标以 [架构基线](../dude/docs/dude-architecture-baseline.md) 为准：Project Brief 是唯一项目事实来源，用户明确生成时冻结版本，交付技术方案与体验 Demo 的操作手册。核心动作和可见结果足够即可，用户画像与正式验收不是门槛。
@@ -43,7 +47,7 @@ flowchart LR
 
 根级 [Compose](../docker-compose.yml) include 三个应用 Compose；当前服务恰为 postgres、dude-api、dude-admin、journal、nginx。只 nginx 发布宿主机端口。应用依赖 postgres healthy，nginx 依赖三应用 healthy；nginx 自身没有 Compose healthcheck。
 
-镜像/身份：pgvector/pgvector:pg16 → chalab-postgres；dude-api → dude-api；journal → portal-journal；nginx:1.28.0-alpine → portal-nginx。Journal Python 3.12 镜像以 journal UID 10001 运行；dude Python 镜像未设置非 root USER，uv 安装未固定版本。Go 为 1.22 构建、scratch 运行。版本标签不等于镜像 digest 锁定。
+镜像/身份：pgvector/pgvector:pg16 → chalab-postgres；dude-api → dude-api；journal → portal-journal；nginx:1.28.0-alpine → portal-nginx。Journal Python 3.12 镜像以 journal UID 10001 运行；dude Python 镜像未设置非 root USER，uv 固定 0.11.26，导出锁定版本/哈希后从镜像安装 wheel。Go 为 1.22 构建、scratch 运行。版本标签不等于镜像 digest 锁定。
 
 ## 2. 入口、路由与本地差异
 

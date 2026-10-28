@@ -401,3 +401,14 @@
 | [docs/postgresql-backup-and-restore.md](../docs/postgresql-backup-and-restore.md) | PostgreSQL 备份与恢复 |
 | [docs/project-context.md](../docs/project-context.md) | 当前架构、API、数据边界、风险与验证索引 |
 | [docs/project-file-index.md](../docs/project-file-index.md) | 本清单：版本文件定位 |
+
+## 2026-10-28 部署优化增补
+
+| 文件 | 职责 |
+| --- | --- |
+| [scripts/build.sh](../scripts/build.sh) | 仅构建指定应用，锁与受限构建器 |
+| [scripts/lib/deployment.sh](../scripts/lib/deployment.sh) | 共享部署锁、构建限额、数据库保留、健康检查与代理切换 |
+| [ops/buildkit/buildkitd.toml](../ops/buildkit/buildkitd.toml) | BuildKit 内部步骤串行 |
+| [dude/dude-admin/.dockerignore](../dude/dude-admin/.dockerignore) | Go 镜像上下文排除密钥与产物 |
+| [tests/test_deployment.py](../tests/test_deployment.py) | 假 Docker 故障边界与并发部署测试，不连接数据库 |
+| [small-server-deployment.md](small-server-deployment.md) | 日常/首次部署、资源限制、诊断和回退限制 |

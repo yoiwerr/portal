@@ -42,6 +42,7 @@ inf.txt
 
 # Local development runner ownership (contains no credentials)
 .portal-dev.lock
+.portal-deploy.lock
 
 # dude Wiki admin snapshots/candidates and published releases: back up separately.
 dude/var/

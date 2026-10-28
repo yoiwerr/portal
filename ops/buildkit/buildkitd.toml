@@ -1,0 +1,4 @@
+# Docker container driver provides the memory/CPU cgroup limits.
+# Also serialize independent Dockerfile steps inside each build.
+[worker.oci]
+  max-parallelism = 1

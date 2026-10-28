@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.log
+*.dump
+admin
+coverage*

@@ -1,20 +1,16 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-cd "$(dirname "$0")/.."
-fail(){ printf '[ERROR] %s\n' "$*" >&2; exit 1; }
-ok(){ printf '[OK] %s\n' "$*"; }
-warn(){ printf '[WARN] %s\n' "$*" >&2; }
+source "$(dirname "$0")/lib/deployment.sh"
+portal_lock
+portal_config
+fail(){ portal_fail "$@"; }
+ok(){ portal_ok "$@"; }
 SKIP_USER=false
 [[ ${1:-} == '--skip-user' ]] && SKIP_USER=true
 ./scripts/check-production-config.sh
 set -a; source .env; set +a
 
-docker compose up -d postgres
-for _ in $(seq 1 30); do
-  [[ "$(docker inspect --format='{{.State.Health.Status}}' chalab-postgres 2>/dev/null || true)" == healthy ]] && break
-  sleep 2
-done
-[[ "$(docker inspect --format='{{.State.Health.Status}}' chalab-postgres 2>/dev/null || true)" == healthy ]] || fail 'existing PostgreSQL container is not healthy'
+portal_postgres false
 
 # This runs against the existing volume; it creates only the missing Journal role/database.
 docker compose exec -T -e JOURNAL_DB_PASSWORD="$JOURNAL_DB_PASSWORD" postgres sh -ceu '
@@ -28,39 +24,15 @@ SQL
 '
 ok 'journal_user and journal database are ready'
 
-docker compose build journal
-docker compose run --rm journal uv run --no-dev alembic upgrade head
+portal_build journal
+docker compose run --rm --no-deps -T journal uv run --frozen --no-dev alembic upgrade head
 ok 'Journal Alembic migration completed'
 
 if ! $SKIP_USER; then
   printf '\nCreate or update the Journal login user. Password input is hidden.\n'
-  docker compose run --rm -e JOURNAL_ADMIN_USERNAME=yoiwerr journal uv run --no-dev python create_user.py
+  docker compose run --rm --no-deps -e JOURNAL_ADMIN_USERNAME=yoiwerr journal uv run --frozen --no-dev python create_user.py
 fi
 
-docker compose up -d --no-deps journal
-for _ in $(seq 1 30); do
-  [[ "$(docker inspect --format='{{.State.Health.Status}}' portal-journal 2>/dev/null || true)" == healthy ]] && break
-  sleep 2
-done
-[[ "$(docker inspect --format='{{.State.Health.Status}}' portal-journal 2>/dev/null || true)" == healthy ]] || { docker compose logs --tail=100 journal; fail 'Journal did not become healthy'; }
-
-if docker compose up -d --build dude-admin; then
-  for _ in $(seq 1 30); do
-    [[ "$(docker inspect --format='{{.State.Health.Status}}' dude-admin 2>/dev/null || true)" == healthy ]] && break
-    sleep 2
-  done
-  if [[ "$(docker inspect --format='{{.State.Health.Status}}' dude-admin 2>/dev/null || true)" != healthy ]]; then
-    warn 'dude-admin is not healthy; continuing with Journal (dude routes may return 502)'
-    docker compose logs --tail=100 dude-admin || true
-  fi
-else
-  warn 'dude-admin build/start failed; continuing with Journal (dude routes may return 502)'
-fi
-
-docker compose run --rm --no-deps nginx nginx -t
-docker compose up -d --no-deps --force-recreate nginx
-curl --retry 5 --retry-delay 2 --retry-all-errors \
-  --fail --silent --show-error --insecure \
-  --resolve yoiwerr.site:443:127.0.0.1 \
-  https://yoiwerr.site/journal/health >/dev/null
+docker compose up -d --no-deps --no-build --wait --wait-timeout 180 journal
+portal_proxy
 ok 'Journal is available at https://yoiwerr.site/journal/'

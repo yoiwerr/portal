@@ -13,3 +13,8 @@ var
 *.pem
 *.key
 dude-admin
+dude-orchestrator
+**/node_modules
+**/.venv
+**/.pytest_cache
+**/.git
