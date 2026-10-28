@@ -22,7 +22,7 @@ const testSecret = "isolated-test-secret-at-least-32-characters"
 func signedToken(t *testing.T, role string, method jwt.SigningMethod, expiry time.Time) string {
 	t.Helper()
 	claims := service.UserClaims{UserID: uuid.NewString(), Username: "test", Role: role,
-		RegisteredClaims: jwt.RegisteredClaims{Issuer: "dude-admin", ExpiresAt: jwt.NewNumericDate(expiry)}}
+		RegisteredClaims: jwt.RegisteredClaims{Issuer: "alfred-admin", ExpiresAt: jwt.NewNumericDate(expiry)}}
 	token, err := jwt.NewWithClaims(method, claims).SignedString([]byte(testSecret))
 	if err != nil {
 		t.Fatal(err)

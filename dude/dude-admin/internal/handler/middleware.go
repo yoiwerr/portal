@@ -70,7 +70,7 @@ func (m *Middleware) Auth(next http.Handler) http.Handler {
 		claims := &service.UserClaims{}
 		token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
 			return m.jwtSecret, nil
-		}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired(), jwt.WithIssuer("dude-admin"))
+		}, jwt.WithValidMethods([]string{"HS256"}), jwt.WithExpirationRequired(), jwt.WithIssuer("alfred-admin"))
 
 		if err != nil || !token.Valid {
 			response.WriteError(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "Invalid or expired token")
