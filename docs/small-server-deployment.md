@@ -47,6 +47,8 @@ git pull --ff-only
 
 脚本还要求至少 256 MiB 可用内存及 4 GiB 空闲磁盘；这是最低检查，不保证所有负载下都能构建。硬上限限制构建器，不能约束 Docker daemon 和现有应用，也不能消除所有 I/O/网络竞争。资源不足时宁可失败并保留当前应用。首次构建 Go 缓存会更慢。
 
+独立 BuildKit 不会自动继承 Docker daemon 的镜像源；创建时由 `scripts/lib/buildkit-config.py` 复用管理员在 Docker 中配置的 HTTPS registry mirrors，不接受带凭据或不安全 HTTP 的源。已有构建器需要按下文停止并重建，才会应用更新的源。
+
 构建器镜像固定为 `moby/buildkit:v0.20.2`，Dockerfile 前端固定为 `docker/dockerfile:1.7`。Python、Go 与应用锁文件保持现有版本，uv 固定 0.11.26。Python 导出锁定版本与哈希后，从包镜像获取 wheel 并校验哈希，避免 `uv.lock` 内的直链使安装仍去海外站点。没有兼容 wheel 时明确失败，应在开发机调查依赖，不要在小服务器临时安装整套编译器。`PYTHON_PACKAGE_INDEX` 可作为 Docker build arg 指向其他可信镜像，根 `.env` 中设置同名变量不会自动修改 build arg。
 
 uv、Go 模块和 Go 编译结果使用 BuildKit 持久缓存。dude Python 构建上下文排除 Go 子服务、独立的 TypeScript 基础工程及 node_modules，避免上传无关依赖。新 TypeScript 服务尚未加入生产编排。

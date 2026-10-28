@@ -10,6 +10,7 @@ portal_cleanup() {
   if [[ ${PORTAL_BUILDER_ACTIVE:-false} == true ]]; then
     docker buildx stop "$PORTAL_BUILDER" >/dev/null 2>&1 || true
   fi
+  if [[ -n ${PORTAL_BUILDER_CONFIG:-} ]]; then rm -f -- "$PORTAL_BUILDER_CONFIG"; fi
 }
 trap portal_cleanup EXIT
 
@@ -49,11 +50,16 @@ portal_builder() {
   [[ $available -ge 256 ]] || portal_fail "Only ${available} MiB RAM available; stop verified unused services before building"
   [[ $disk -ge 4096 ]] || portal_fail "Only ${disk} MiB disk free; need at least 4 GiB for build/cache"
   if ! docker buildx inspect "$PORTAL_BUILDER" >/dev/null 2>&1; then
+    # A separate BuildKit daemon does not inherit Docker daemon's registry mirrors.
+    PORTAL_BUILDER_CONFIG=$(mktemp /tmp/portal-buildkit.XXXXXX.toml)
+    python3 "$PORTAL_ROOT/scripts/lib/buildkit-config.py" > "$PORTAL_BUILDER_CONFIG"
     docker buildx create --name "$PORTAL_BUILDER" --driver docker-container \
       --driver-opt image=moby/buildkit:v0.20.2 \
       --driver-opt memory=512m --driver-opt memory-swap=1g \
       --driver-opt cpu-period=100000 --driver-opt cpu-quota=75000 \
-      --buildkitd-config "$PORTAL_ROOT/ops/buildkit/buildkitd.toml"
+      --buildkitd-config "$PORTAL_BUILDER_CONFIG"
+    rm -f -- "$PORTAL_BUILDER_CONFIG"
+    PORTAL_BUILDER_CONFIG=''
   fi
   PORTAL_BUILDER_ACTIVE=true
   docker buildx inspect --bootstrap "$PORTAL_BUILDER" >/dev/null

@@ -412,3 +412,4 @@
 | [dude/dude-admin/.dockerignore](../dude/dude-admin/.dockerignore) | Go 镜像上下文排除密钥与产物 |
 | [tests/test_deployment.py](../tests/test_deployment.py) | 假 Docker 故障边界与并发部署测试，不连接数据库 |
 | [small-server-deployment.md](small-server-deployment.md) | 日常/首次部署、资源限制、诊断和回退限制 |
+| [scripts/lib/buildkit-config.py](../scripts/lib/buildkit-config.py) | 从现有 Docker HTTPS 镜像源生成受限 BuildKit 配置 |

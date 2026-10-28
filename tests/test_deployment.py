@@ -17,6 +17,12 @@ with open(os.environ['CALL_LOG'], 'a') as out:
     out.write(json.dumps([Path(sys.argv[0]).name, *args]) + '\n')
 if Path(sys.argv[0]).name == 'curl':
     sys.exit(0)
+if args == ['info', '--format', '{{json .RegistryConfig.Mirrors}}']:
+    print('["https://registry.example.test/"]')
+if args[:2] == ['buildx', 'inspect'] and '--bootstrap' not in args and os.environ.get('NEW_BUILDER'):
+    sys.exit(1)
+if args[:2] == ['buildx', 'create'] and os.environ.get('CAPTURE_CONFIG'):
+    Path(os.environ['CAPTURE_CONFIG']).write_text(Path(args[args.index('--buildkitd-config')+1]).read_text())
 if args[:2] == ['inspect', '--format']:
     print('536870912 1073741824 100000 75000')
 if 'ps' in args and args[-1] == 'postgres':
@@ -40,6 +46,7 @@ class DeploymentTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         shutil.copytree(ROOT / 'scripts', self.root / 'scripts')
+        shutil.copytree(ROOT / 'ops/buildkit', self.root / 'ops/buildkit')
         # Isolate certificate/environment validation; its real script is separately checked.
         check = self.root / 'scripts/check-production-config.sh'
         check.write_text('#!/bin/bash\nexit 0\n')
@@ -122,6 +129,18 @@ class DeploymentTests(unittest.TestCase):
         result = self.run_script('build.sh', 'postgres')
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(self.calls(), [])
+
+    def test_new_builder_inherits_mirrors_and_applies_resource_limits(self):
+        config = self.root / 'captured.toml'
+        result = self.run_script('build.sh', 'dude-api', NEW_BUILDER='1', CAPTURE_CONFIG=str(config))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        import tomllib
+        actual = tomllib.loads(config.read_text())
+        self.assertEqual(actual['registry']['docker.io']['mirrors'], ['registry.example.test'])
+        self.assertEqual(actual['worker']['oci']['max-parallelism'], 1)
+        create = next(c for c in self.calls() if c[1:3] == ['buildx', 'create'])
+        for option in ('memory=512m', 'memory-swap=1g', 'cpu-quota=75000'):
+            self.assertIn(option, create)
 
 
 if __name__ == '__main__':
